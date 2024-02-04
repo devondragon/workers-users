@@ -9,8 +9,6 @@ sequenceDiagram
     participant CB as Client Browser
     participant UMW as user-mgmt Worker API
     participant UMD as user-mgmt D1 Database
-    participant SSW as session-state Worker API
-    participant SSKV as session-state KV
     CB->>UMW: Registration Form POST
     UMW->>UMD: Persist User Data
     UMD->>UMW: Success
