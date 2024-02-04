@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Login or Register</title>
+    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+    <div class="container">
+        <div id="login-form" class="form-section">
+            <div id="login-message" class="message">
+                <a href="loggedin.html">You are logged in. Click here to continue.</a>
+            </div>
+            <h2>Login</h2>
+            <form id="loginForm">
+                <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" required />
+                <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required />
+                <button type="submit" class="submit-button">Login</button>
+            </form>
+            <p class="toggle-text">Don't have an account? <span onclick="toggleForms()">Register</span></p>
+        </div>
+
+        <div id="register-form" class="form-section">
+            <div id="register-message" class="message"></div>
+            <h2>Register</h2>
+            <form id="registerForm">
+                <input type="email" id="registerEmail" placeholder="Email" autocomplete="username" required />
+                <input type="password" id="registerPassword" placeholder="Password" autocomplete="new-password" required />
+                <input type="text" id="firstName" placeholder="First Name" autocomplete="given-name" required />
+                <input type="text" id="lastName" placeholder="Last Name" autocomplete="family-name" required />
+                <button type="submit" class="submit-button">Register</button>
+            </form>
+            <p class="toggle-text">Already have an account? <span onclick="toggleForms()">Login</span></p>
+        </div>
+
+        <div id="logged-in-section" class="form-section">
+            If you are already logged in, you can visit this page for your user data: <a href="loggedin.html">Logged In</a>
+        </div>
+
+        <script src="js/script.js"></script>
+</body>
+
+</html>

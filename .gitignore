@@ -1,0 +1,4 @@
+node_modules/
+.nx/cache
+.env
+lerna-debug.log

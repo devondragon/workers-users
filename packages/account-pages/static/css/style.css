@@ -1,0 +1,116 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+.container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 300px; /* Optional: Adjust this to fit your design preference */
+}
+
+input[type="text"], input[type="password"], input[type="email"]{
+    width: calc(100% - 20px); /* Adjust width to account for padding */
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box; /* Ensures padding is included in the width */
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: calc(100% - 20px); /* Adjust button width */
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.form-section {
+    display: none;
+}
+
+
+/* Existing styles remain unchanged */
+
+.toggle-button {
+    background-color: #f4f4f4;
+    color: #007bff;
+    padding: 5px 10px;
+    border: 1px solid #007bff;
+    border-radius: 4px;
+    cursor: pointer;
+    float: right; /* Aligns the button to the right */
+    margin: 2px;
+}
+
+.toggle-button:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.submit-button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 10px; /* Adds space above the button */
+}
+
+.submit-button:hover {
+    background-color: #0056b3;
+}
+
+h2 {
+    clear: both; /* Clears the float effect for proper alignment */
+}
+
+.toggle-text {
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #007bff;
+}
+
+.toggle-text span {
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+
+.message {
+    margin: 10px 0;
+    padding: 5px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+
+
+
