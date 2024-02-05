@@ -24,7 +24,7 @@ You will need to have a Node version of 16.17.0 or later (as required by Wrangle
 First you should clone (or fork and clone) this repository:
 
 ```bash
-git clone <your-repo-link>
+git clone https://github.com/devondragon/workers-users.git
 cd workers-users
 ```
 
