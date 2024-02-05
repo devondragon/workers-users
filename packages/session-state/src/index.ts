@@ -9,6 +9,8 @@
  * Functions:
  * - `generateSessionId`: Generates a unique session identifier using `crypto.randomUUID`.
  * - `createSession`: Creates a new session with the provided data in the Cloudflare KV store and returns the session ID.
+ * - `updateSession`: Updates the data for a given session ID in the Cloudflare KV store.
+ * - `addToSession`: Adds data to an existing session in the Cloudflare KV store.
  * - `getSessionData`: Retrieves session data for a given session ID from the Cloudflare KV store.
  * - `deleteSession`: Deletes a session from the Cloudflare KV store using the session ID.
  *
@@ -29,6 +31,7 @@ function generateSessionId(): string {
 	return crypto.randomUUID();
 }
 
+// Create a new session in the KV store
 async function createSession(data: any, env: Env): Promise<string> {
 	const sessionId = generateSessionId();
 	try {
@@ -39,14 +42,24 @@ async function createSession(data: any, env: Env): Promise<string> {
 	return sessionId;
 }
 
-// TODO: Add a function to update a session
+// Update session data in the KV store
+async function updateSession(sessionId: string, data: any, env: Env): Promise<void> {
+	await env.sessionstore.put(sessionId, JSON.stringify(data));
+}
 
+// Add data to an existing session
+async function addToSession(sessionId: string, data: any, env: Env): Promise<void> {
+	const sessionData = await getSessionData(sessionId, env);
+	await updateSession(sessionId, { ...sessionData, ...data }, env);
+}
 
+// Retrieve session data from the KV store
 async function getSessionData(sessionId: string, env: Env): Promise<any> {
 	const data = await env.sessionstore.get(sessionId);
 	return data ? JSON.parse(data) : null;
 }
 
+// Delete a session from the KV store
 async function deleteSession(sessionId: string, env: Env): Promise<void> {
 	await env.sessionstore.delete(sessionId);
 }
