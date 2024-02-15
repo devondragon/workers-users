@@ -39,6 +39,7 @@ function handleLogin() {
         .then(data => {
             displayMessage('login', 'success', 'Login successful!');
             document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('login-message').classList.remove('hidden'); // Show login message
         })
         .catch(error => {
             displayMessage('login', 'error', 'Login failed: ' + error.message);
