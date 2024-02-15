@@ -1,4 +1,23 @@
-const API_BASE_URL = 'https://<YOUR-USER-MGMT-WORKER-URL>';
+import { callApi } from './api.js';
+
+
+document.addEventListener('DOMContentLoaded', function () {
+    // Existing event listeners
+    document.getElementById('loginForm').addEventListener('submit', function (event) {
+        event.preventDefault(); // Prevent the default form submission
+        handleLogin();
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', function (event) {
+        event.preventDefault(); // Prevent the default form submission
+        handleRegister();
+    });
+
+    // Toggle forms event listener
+    document.getElementById('toggleRegForm').addEventListener('click', toggleForms);
+    document.getElementById('toggleLoginForm').addEventListener('click', toggleForms);
+});
+
 
 function toggleForms() {
     var loginForm = document.getElementById("login-form");
@@ -12,21 +31,11 @@ function toggleForms() {
     }
 }
 
-document.getElementById('loginForm').addEventListener('submit', function (event) {
-    event.preventDefault(); // Prevent the default form submission
-    handleLogin();
-});
-
-document.getElementById('registerForm').addEventListener('submit', function (event) {
-    event.preventDefault(); // Prevent the default form submission
-    handleRegister();
-});
-
 function handleLogin() {
     const username = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
 
-    callApi(`${API_BASE_URL}/login`, { username, password })
+    callApi(`/login`, { username, password })
         .then(data => {
             displayMessage('login', 'success', 'Login successful!');
             document.getElementById('loginForm').style.display = 'none';
@@ -42,33 +51,13 @@ function handleRegister() {
     const firstName = document.getElementById('firstName').value;
     const lastName = document.getElementById('lastName').value;
 
-    callApi(`${API_BASE_URL}/register`, { username, password, firstName, lastName })
+    callApi(`/register`, { username, password, firstName, lastName })
         .then(data => {
             displayMessage('register', 'success', 'Registration successful!');
             document.getElementById('registerForm').style.display = 'none';
         })
         .catch(error => {
             displayMessage('register', 'error', 'Registration failed: ' + error.message);
-        });
-}
-
-
-function callApi(endpoint, data) {
-    return fetch(endpoint, {
-        credentials: 'include',
-        crossDomain: true,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-        .then(async response => {
-            if (!response.ok) {
-                const errorData = await response.json(); // Attempt to parse the error response
-                throw new Error(errorData.error || 'Network response was not ok'); // Use the server's error message if available
-            }
-            return response.json();
         });
 }
 

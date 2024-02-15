@@ -1,4 +1,4 @@
-const API_BASE_URL = '<YOUR-USER-MGMT-WORKER-URL>';
+const API_BASE_URL = window.AppConfig.apiUrl;
 
 document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('fetchUserData').addEventListener('click', loadSessionData);

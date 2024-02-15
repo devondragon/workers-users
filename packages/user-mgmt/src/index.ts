@@ -225,8 +225,71 @@ async function handleLogout(request: Request, env: Env): Promise<Response> {
 async function handleForgotPassword(request: Request, env: Env): Promise<Response> {
 	const { email } = await request.json() as { email: string };
 	// Initiate password reset process
+	// load user by email
+	const query = 'SELECT * FROM User WHERE Email = ?';
+	const result = (await env.usersDB.prepare(query).bind(email).all()).results;
+	if (result.length === 0) {
+		return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+	}
+	const user = result[0];
+
+	// create a reset token
+	const resetToken = crypto.getRandomValues(new Uint8Array(16)).join('');
+
+	// store reset token in database
+	const updateQuery = 'UPDATE User SET ResetToken = ?, ResetTokenTime = ? WHERE Email = ?';
+	await env.usersDB.prepare(updateQuery).bind(resetToken, Date.now, email).run();
+
+	// send email with reset link
+	const resetLink = `https://example.com/reset-password?token=${resetToken}`;
+	// sendEmail(email, resetLink);
+
 	// TODO - Implement the password reset process.
 	return new Response(JSON.stringify({ message: 'Password reset initiated' }));
+}
+
+// Utility function to send an email with a password reset link.
+// Function to send an email
+async function sendEmail(): Promise<void> {
+	// Define the email payload
+	const payload: EmailPayload = {
+		personalizations: [
+			{
+				to: [{ email: 'test@example.com', name: 'Test Recipient' }],
+			},
+		],
+		from: {
+			email: 'sender@example.com',
+			name: 'Workers - MailChannels integration',
+		},
+		subject: 'Password Reset Link',
+		content: [
+			{
+				type: 'text/plain',
+				value: 'Click the following link to reset your password: https://example.com/reset-password?token=1234567890',
+			},
+		],
+	};
+
+	// Create a new request to the MailChannels API
+	const sendRequest = new Request('https://api.mailchannels.net/tx/v1/send', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(payload),
+	});
+
+	// Send the request
+	try {
+		const response = await fetch(sendRequest);
+		if (!response.ok) {
+			throw new Error(`Failed to send email: ${response.statusText}`);
+		}
+		console.log('Email sent successfully');
+	} catch (error) {
+		console.error('Error sending email:', error);
+	}
 }
 
 
@@ -314,4 +377,21 @@ interface Credentials {
 interface RegistrationData extends Credentials {
 	firstName: string;
 	lastName: string;
+}
+
+// Define interfaces for the email payload structure for better type checking
+interface EmailPersonalization {
+	to: Array<{ email: string; name: string }>;
+}
+
+interface EmailContent {
+	type: string;
+	value: string;
+}
+
+interface EmailPayload {
+	personalizations: EmailPersonalization[];
+	from: { email: string; name: string };
+	subject: string;
+	content: EmailContent[];
 }
