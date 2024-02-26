@@ -1,4 +1,9 @@
-const apiBaseUrl = 'https://api.example.com';
+// For local development, use the following line:
+const apiBaseUrl = 'http://localhost:51512';
+
+// For production, use the following line:
+// const apiBaseUrl = 'https://api.example.com';
+
 
 export function callApi(endpoint, data) {
     const url = apiBaseUrl + endpoint;

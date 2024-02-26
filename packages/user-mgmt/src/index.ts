@@ -223,11 +223,12 @@ async function handleLogout(request: Request, env: Env): Promise<Response> {
 
 // Placeholder for initiating the password reset process.
 async function handleForgotPassword(request: Request, env: Env): Promise<Response> {
-	const { email } = await request.json() as { email: string };
+	const { username } = await request.json() as { username: string };
+	console.log('Initiating password reset for username:', username);
 	// Initiate password reset process
 	// load user by email
-	const query = 'SELECT * FROM User WHERE Email = ?';
-	const result = (await env.usersDB.prepare(query).bind(email).all()).results;
+	const query = 'SELECT * FROM User WHERE Username = ?';
+	const result = (await env.usersDB.prepare(query).bind(username).all()).results;
 	if (result.length === 0) {
 		return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
 	}
@@ -237,8 +238,8 @@ async function handleForgotPassword(request: Request, env: Env): Promise<Respons
 	const resetToken = crypto.getRandomValues(new Uint8Array(16)).join('');
 
 	// store reset token in database
-	const updateQuery = 'UPDATE User SET ResetToken = ?, ResetTokenTime = ? WHERE Email = ?';
-	await env.usersDB.prepare(updateQuery).bind(resetToken, Date.now, email).run();
+	const updateQuery = 'UPDATE User SET ResetToken = ?, ResetTokenTime = ? WHERE Username = ?';
+	await env.usersDB.prepare(updateQuery).bind(resetToken, Date.now(), username).run();
 
 	// send email with reset link
 	const resetLink = `https://example.com/reset-password?token=${resetToken}`;

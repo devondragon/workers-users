@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function handleForgotPassword() {
-    const username = document.getElementById('forgotEmail').value;
+    const username = document.getElementById('loginEmail').value;
+    console.log("username:" + username);
 
     callApi(`/forgot-password`, { username })
         .then(data => {

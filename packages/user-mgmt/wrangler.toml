@@ -10,8 +10,11 @@ service = "session-state"
 [[d1_databases]]
 binding = "usersDB"
 database_name = "users"
-database_id = "<YOUR_DB_ID>"
+database_id = "08d1a683-e910-43c4-bce1-918319e23e7f"
 
 [vars]
 EMAIL_FROM = "noreply@test.com"
 EMAIL_FROM_NAME = "Test"
+
+[dev]
+port = 51512

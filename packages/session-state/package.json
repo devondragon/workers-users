@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --inspectorPort=51521",
     "start": "wrangler dev"
   },
   "devDependencies": {
