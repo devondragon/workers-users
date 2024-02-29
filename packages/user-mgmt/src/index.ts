@@ -22,6 +22,10 @@ const hashingAlgo = 'SHA-256';
 export interface Env {
 	usersDB: D1Database; // Reference to Cloudflare's D1 Database for user data.
 	sessionService: Fetcher; // Direct reference to session-state Worker for session management.
+	EMAIL_FROM: string; // Email address to use as the sender for password reset emails.
+	EMAIL_FROM_NAME: string; // Name to use as the sender for password reset emails.
+	FORGOT_PASSWORD_URL: string; // URL to use as the password reset link in the email.
+	TOKEN_VALID_MINUTES: number; // Time in minutes for the password reset token to expire.
 }
 
 // CORS headers configuration to support cross-origin requests.
@@ -54,6 +58,12 @@ export default {
 					break;
 				case '/forgot-password':
 					response = await handleForgotPassword(request, env);
+					break;
+				case '/forgot-password-validate':
+					response = await handleForgotPasswordValidate(request, env);
+					break;
+				case '/forgot-password-new-password':
+					response = await handleForgotPasswordNewPassword(request, env);
 					break;
 				case '/load-user':
 					response = await handleLoadUser(request, env);
@@ -242,43 +252,71 @@ async function handleForgotPassword(request: Request, env: Env): Promise<Respons
 	await env.usersDB.prepare(updateQuery).bind(resetToken, Date.now(), username).run();
 
 	// send email with reset link
-	const resetLink = `https://example.com/reset-password?token=${resetToken}`;
+	const resetLink = `${env.FORGOT_PASSWORD_URL}?token=${resetToken}`;
+	//	const resetLink = `https://example.com/reset-password?token=${resetToken}`;
 	// sendEmail(email, resetLink);
 
-	// TODO - Implement the password reset process.
+	const toEmail = username;
+	const toName = `${user.FirstName} ${user.LastName}`;
+	const fromEmail = env.EMAIL_FROM;
+	const fromName = env.EMAIL_FROM_NAME;
+	const subject = 'Password Reset Link';
+	const contentValue = `Click the following link to reset your password: ${resetLink}`;
+	const emailPayload = createEmailPayload(toEmail, toName, fromEmail, fromName, subject, contentValue);
+
+	console.log(emailPayload);
+
+	await sendEmail(emailPayload);
+
 	return new Response(JSON.stringify({ message: 'Password reset initiated' }));
+}
+
+async function handleForgotPasswordValidate(request: Request, env: Env): Promise<Response> {
+	const { token } = await request.json() as { token: string };
+	// validate token
+	const query = 'SELECT * FROM User WHERE ResetToken = ?';
+	const result = (await env.usersDB.prepare(query).bind(token).all()).results;
+	if (result.length === 0) {
+		return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+	}
+	const user = result[0];
+
+	const millisecondsInMinute = 1000 * 60;
+	const tokenExpirationTime = env.TOKEN_VALID_MINUTES * millisecondsInMinute;
+
+	// check if token expired
+	if (Date.now() - (user.ResetTokenTime as number) > tokenExpirationTime) {
+		return new Response(JSON.stringify({ error: 'Token expired' }), { status: 400 });
+	}
+
+	return new Response(JSON.stringify({ message: 'Valid Token' }));
+}
+
+async function handleForgotPasswordNewPassword(request: Request, env: Env): Promise<Response> {
+	const { token, password } = await request.json() as { token: string, password: string };
+	// validate token
+	const query = 'SELECT * FROM User WHERE ResetToken = ?';
+	const result = (await env.usersDB.prepare(query).bind(token).all()).results;
+	if (result.length === 0) {
+		return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+	}
+	const user = result[0];
+	const hashedPassword = await hashPassword(password);
+	const updateQuery = 'UPDATE User SET Password = ?, ResetToken = NULL, ResetTokenTime = NULL WHERE Username = ?';
+	await env.usersDB.prepare(updateQuery).bind(hashedPassword, user.Username).run();
+	return new Response(JSON.stringify({ message: 'Password reset successful' }));
 }
 
 // Utility function to send an email with a password reset link.
 // Function to send an email
-async function sendEmail(): Promise<void> {
-	// Define the email payload
-	const payload: EmailPayload = {
-		personalizations: [
-			{
-				to: [{ email: 'test@example.com', name: 'Test Recipient' }],
-			},
-		],
-		from: {
-			email: 'sender@example.com',
-			name: 'Workers - MailChannels integration',
-		},
-		subject: 'Password Reset Link',
-		content: [
-			{
-				type: 'text/plain',
-				value: 'Click the following link to reset your password: https://example.com/reset-password?token=1234567890',
-			},
-		],
-	};
-
+async function sendEmail(emailPayload: EmailPayload): Promise<void> {
 	// Create a new request to the MailChannels API
 	const sendRequest = new Request('https://api.mailchannels.net/tx/v1/send', {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 		},
-		body: JSON.stringify(payload),
+		body: JSON.stringify(emailPayload),
 	});
 
 	// Send the request
@@ -381,8 +419,26 @@ interface RegistrationData extends Credentials {
 }
 
 // Define interfaces for the email payload structure for better type checking
-interface EmailPersonalization {
-	to: Array<{ email: string; name: string }>;
+// interface EmailPersonalization {
+// 	to: Array<{ email: string; name: string }>;
+// }
+
+// interface EmailContent {
+// 	type: string;
+// 	value: string;
+// }
+
+// interface EmailPayload {
+// 	personalizations: EmailPersonalization[];
+// 	from: { email: string; name: string };
+// 	subject: string;
+// 	content: EmailContent[];
+// }
+
+
+interface EmailRecipient {
+	email: string;
+	name: string;
 }
 
 interface EmailContent {
@@ -391,8 +447,34 @@ interface EmailContent {
 }
 
 interface EmailPayload {
-	personalizations: EmailPersonalization[];
-	from: { email: string; name: string };
+	personalizations: Array<{
+		to: EmailRecipient[];
+	}>;
+	from: EmailRecipient;
 	subject: string;
 	content: EmailContent[];
 }
+
+function createEmailPayload(toEmail: string, toName: string, fromEmail: string, fromName: string, subject: string, contentValue: string): EmailPayload {
+	const payload: EmailPayload = {
+		personalizations: [
+			{
+				to: [{ email: toEmail, name: toName }],
+			},
+		],
+		from: {
+			email: fromEmail,
+			name: fromName,
+		},
+		subject: subject,
+		content: [
+			{
+				type: 'text/plain',
+				value: contentValue,
+			},
+		],
+	};
+
+	return payload;
+}
+

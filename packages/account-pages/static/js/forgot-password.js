@@ -10,8 +10,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function handleForgotPassword() {
     const username = document.getElementById('loginEmail').value;
-    console.log("username:" + username);
-
     callApi(`/forgot-password`, { username })
         .then(data => {
             displayMessage('forgot-password', 'success', 'Password reset email sent!');

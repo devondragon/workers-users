@@ -13,8 +13,10 @@ database_name = "users"
 database_id = "08d1a683-e910-43c4-bce1-918319e23e7f"
 
 [vars]
-EMAIL_FROM = "noreply@test.com"
-EMAIL_FROM_NAME = "Test"
+EMAIL_FROM = "noreply@justblackmagic.com"
+EMAIL_FROM_NAME = "Black Magic Consulting"
+FORGOT_PASSWORD_URL = "https://account-pages.tools.justblackmagic.com/forgot-password-reset.html"
+TOKEN_VALID_MINUTES = 60
 
 [dev]
 port = 51512
