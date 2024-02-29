@@ -33,6 +33,7 @@ async function handlePasswordReset() {
 function handleSetNewPassword() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const messageDiv = document.getElementById('message');
     const password = document.getElementById('newPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
 
@@ -48,6 +49,7 @@ function handleSetNewPassword() {
         })
         .catch(error => {
             messageDiv.textContent = 'Failed to reset password: ' + error.message;
+            document.getElementById('passwordResetForm').style.display = 'none';
         });
 }
 
