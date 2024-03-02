@@ -1,19 +1,33 @@
 /**
- * This class encapsulates the core functionality of a Cloudflare Worker designed to manage user sessions and authentication in a serverless environment. It leverages Cloudflare's D1 Database for storing user information and a custom session management service for session handling. The worker supports various endpoints for user management operations such as registration, login, logout, password reset, and fetching user session data.
+ * This module defines a Cloudflare Worker for managing user authentication and session management in a serverless
+ * architecture. It utilizes Cloudflare's D1 Database to persist user information and integrates with a custom
+ * session management service for maintaining user sessions. The worker offers endpoints for user registration,
+ * authentication (login), session termination (logout), password reset functionalities, and retrieving user
+ * session information, catering to the foundational needs of secure and stateful web applications.
  *
- * The worker uses a 'SHA-256' hashing algorithm for password security and implements basic CORS (Cross-Origin Resource Sharing) handling to support web client interactions. It defines an `Env` interface to type-check the environment variables, ensuring the worker has access to necessary external resources like the usersDB (D1 Database) and sessionService (an abstraction over Fetch API for session management).
+ * Utilizing SHA-256 for password hashing, this worker prioritizes security while acknowledging the operational
+ * constraints of Cloudflare Workers, such as the impracticality of employing bcrypt for hashing due to its
+ * computational intensity. Additionally, the worker implements essential Cross-Origin Resource Sharing (CORS)
+ * handling capabilities to ensure seamless interaction with web clients across different origins.
  *
- * Key Functions:
- * - `fetch`: The main entry point for incoming requests, routing them to the appropriate handler based on the request path.
- * - `handleRegister`: Processes user registration requests, including user data validation, password hashing, and storing user information in the database.
- * - `handleLogin`: Authenticates users by comparing provided credentials against stored data, creating a session on successful authentication.
- * - `handleLogout`: Ends a user session and clears session data.
- * - `handleForgotPassword`: Initiates the password reset process (implementation placeholder).
- * - `handleLoadUser`: Retrieves session data for a logged-in user, demonstrating session management in action.
- * - `handleOptions`: Handles CORS preflight requests to ensure compatibility with web clients hosted on different origins.
+ * By defining a structured `Env` interface, the worker enforces type checking on environment variables,
+ * guaranteeing the availability of external resources like the user database (usersDB) and session management
+ * services. This approach enhances the reliability and maintainability of the worker in handling user
+ * authentication and session management tasks.
  *
- * This worker is designed as a foundational component for building secure, stateful applications on the Cloudflare Workers platform, demonstrating how serverless architectures can support complex application features like user authentication and session management.
+ * Features:
+ * - Registration: Validates user data and stores it securely in the database.
+ * - Login: Authenticates users by validating credentials and initiating a session.
+ * - Logout: Terminates an active user session and clears related data.
+ * - Password Reset: Facilitates password recovery processes for users.
+ * - Session Data Retrieval: Demonstrates real-time session management by fetching session data.
+ * - CORS Handling: Manages CORS preflight requests to support diverse web clients.
+ *
+ * This worker is architected to serve as a secure, scalable foundation for building web applications on the
+ * Cloudflare platform, showcasing the feasibility of leveraging serverless architectures for complex
+ * application functionalities such as user management and session control.
  */
+
 
 import { sendEmail } from './emailHandler';
 
