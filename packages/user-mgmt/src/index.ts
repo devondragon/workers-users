@@ -15,6 +15,9 @@
  * This worker is designed as a foundational component for building secure, stateful applications on the Cloudflare Workers platform, demonstrating how serverless architectures can support complex application features like user authentication and session management.
  */
 
+import { sendEmail } from './emailHandler';
+
+
 // Hashing algorithm used for securing passwords. Using bcrypt is not practical in a Worker environment.
 const hashingAlgo = 'SHA-256';
 
@@ -26,6 +29,9 @@ export interface Env {
 	EMAIL_FROM_NAME: string; // Name to use as the sender for password reset emails.
 	FORGOT_PASSWORD_URL: string; // URL to use as the password reset link in the email.
 	TOKEN_VALID_MINUTES: number; // Time in minutes for the password reset token to expire.
+	EMAIL_DKIM_DOMAIN: string; // Domain for DKIM signature
+	EMAIL_DKIM_SELECTOR: string; // Selector for DKIM signature
+	EMAIL_DKIM_PRIVATE_KEY: string; // Private key for DKIM signature
 }
 
 // CORS headers configuration to support cross-origin requests.
@@ -253,21 +259,13 @@ async function handleForgotPassword(request: Request, env: Env): Promise<Respons
 
 	// send email with reset link
 	const resetLink = `${env.FORGOT_PASSWORD_URL}?token=${resetToken}`;
-	//	const resetLink = `https://example.com/reset-password?token=${resetToken}`;
-	// sendEmail(email, resetLink);
 
 	const toEmail = username;
 	const toName = `${user.FirstName} ${user.LastName}`;
-	const fromEmail = env.EMAIL_FROM;
-	const fromName = env.EMAIL_FROM_NAME;
 	const subject = 'Password Reset Link';
+
 	const contentValue = `Click the following link to reset your password: ${resetLink}`;
-	const emailPayload = createEmailPayload(toEmail, toName, fromEmail, fromName, subject, contentValue);
-
-	console.log(emailPayload);
-
-	await sendEmail(emailPayload);
-
+	await sendEmail(toEmail, toName, subject, contentValue, env);
 	return new Response(JSON.stringify({ message: 'Password reset initiated' }));
 }
 
@@ -306,31 +304,6 @@ async function handleForgotPasswordNewPassword(request: Request, env: Env): Prom
 	await env.usersDB.prepare(updateQuery).bind(hashedPassword, user.Username).run();
 	return new Response(JSON.stringify({ message: 'Password reset successful' }));
 }
-
-// Utility function to send an email with a password reset link.
-// Function to send an email
-async function sendEmail(emailPayload: EmailPayload): Promise<void> {
-	// Create a new request to the MailChannels API
-	const sendRequest = new Request('https://api.mailchannels.net/tx/v1/send', {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify(emailPayload),
-	});
-
-	// Send the request
-	try {
-		const response = await fetch(sendRequest);
-		if (!response.ok) {
-			throw new Error(`Failed to send email: ${response.statusText}`);
-		}
-		console.log('Email sent successfully');
-	} catch (error) {
-		console.error('Error sending email:', error);
-	}
-}
-
 
 // Implement a function to hash passwords
 // While best practice is to use a slow hashing algorithm like bcrypt, doing so in a Worker is not practical.
@@ -417,64 +390,3 @@ interface RegistrationData extends Credentials {
 	firstName: string;
 	lastName: string;
 }
-
-// Define interfaces for the email payload structure for better type checking
-// interface EmailPersonalization {
-// 	to: Array<{ email: string; name: string }>;
-// }
-
-// interface EmailContent {
-// 	type: string;
-// 	value: string;
-// }
-
-// interface EmailPayload {
-// 	personalizations: EmailPersonalization[];
-// 	from: { email: string; name: string };
-// 	subject: string;
-// 	content: EmailContent[];
-// }
-
-
-interface EmailRecipient {
-	email: string;
-	name: string;
-}
-
-interface EmailContent {
-	type: string;
-	value: string;
-}
-
-interface EmailPayload {
-	personalizations: Array<{
-		to: EmailRecipient[];
-	}>;
-	from: EmailRecipient;
-	subject: string;
-	content: EmailContent[];
-}
-
-function createEmailPayload(toEmail: string, toName: string, fromEmail: string, fromName: string, subject: string, contentValue: string): EmailPayload {
-	const payload: EmailPayload = {
-		personalizations: [
-			{
-				to: [{ email: toEmail, name: toName }],
-			},
-		],
-		from: {
-			email: fromEmail,
-			name: fromName,
-		},
-		subject: subject,
-		content: [
-			{
-				type: 'text/plain',
-				value: contentValue,
-			},
-		],
-	};
-
-	return payload;
-}
-
