@@ -62,11 +62,16 @@ export default {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		let response: Response | null = null;
+
+		// Extract the last segment of the path, this allows us to run this API on a subpath of the domain of the site or Pages application, to reduce cross-origin issues.
+		const lastPath = path.substring(path.lastIndexOf('/'));
+		console.log('Last path:', lastPath);
+
 		// Handle CORS preflight requests.
 		if (request.method === "OPTIONS") {
 			response = handleOptions(request)
 		} else {
-			switch (path) {
+			switch (lastPath) {
 				case '/register':
 					response = await handleRegister(request, env);
 					break
