@@ -11,7 +11,7 @@
 <body>
     <div class="container">
         <div id="login-form" class="form-section">
-            <div id="login-message" class="message">
+            <div id="login-message" class="message hidden">
                 <a href="loggedin.html">You are logged in. Click here to continue.</a>
             </div>
             <h2>Login</h2>
@@ -20,7 +20,8 @@
                 <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required />
                 <button type="submit" class="submit-button">Login</button>
             </form>
-            <p class="toggle-text">Don't have an account? <span onclick="toggleForms()">Register</span></p>
+            <p class="toggle-text">Don't have an account? <span id="toggleRegForm">Register</span></p>
+            <p class="toggle-text">Forgot Your Password? <a href="forgot-password.html">Password Reset</a></p>
         </div>
 
         <div id="register-form" class="form-section">
@@ -33,14 +34,14 @@
                 <input type="text" id="lastName" placeholder="Last Name" autocomplete="family-name" required />
                 <button type="submit" class="submit-button">Register</button>
             </form>
-            <p class="toggle-text">Already have an account? <span onclick="toggleForms()">Login</span></p>
+            <p class="toggle-text">Already have an account? <span id="toggleLoginForm">Login</span></p>
         </div>
 
         <div id="logged-in-section" class="form-section">
             If you are already logged in, you can visit this page for your user data: <a href="loggedin.html">Logged In</a>
         </div>
 
-        <script src="js/script.js"></script>
+        <script type="module" src="js/script.js"></script>
 </body>
 
 </html>

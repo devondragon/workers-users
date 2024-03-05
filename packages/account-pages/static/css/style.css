@@ -111,6 +111,6 @@ h2 {
     color: #721c24;
 }
 
-
-
-
+.hidden {
+    display: none;
+}

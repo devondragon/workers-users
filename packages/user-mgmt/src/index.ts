@@ -1,19 +1,36 @@
 /**
- * This class encapsulates the core functionality of a Cloudflare Worker designed to manage user sessions and authentication in a serverless environment. It leverages Cloudflare's D1 Database for storing user information and a custom session management service for session handling. The worker supports various endpoints for user management operations such as registration, login, logout, password reset, and fetching user session data.
+ * This module defines a Cloudflare Worker for managing user authentication and session management in a serverless
+ * architecture. It utilizes Cloudflare's D1 Database to persist user information and integrates with a custom
+ * session management service for maintaining user sessions. The worker offers endpoints for user registration,
+ * authentication (login), session termination (logout), password reset functionalities, and retrieving user
+ * session information, catering to the foundational needs of secure and stateful web applications.
  *
- * The worker uses a 'SHA-256' hashing algorithm for password security and implements basic CORS (Cross-Origin Resource Sharing) handling to support web client interactions. It defines an `Env` interface to type-check the environment variables, ensuring the worker has access to necessary external resources like the usersDB (D1 Database) and sessionService (an abstraction over Fetch API for session management).
+ * Utilizing SHA-256 for password hashing, this worker prioritizes security while acknowledging the operational
+ * constraints of Cloudflare Workers, such as the impracticality of employing bcrypt for hashing due to its
+ * computational intensity. Additionally, the worker implements essential Cross-Origin Resource Sharing (CORS)
+ * handling capabilities to ensure seamless interaction with web clients across different origins.
  *
- * Key Functions:
- * - `fetch`: The main entry point for incoming requests, routing them to the appropriate handler based on the request path.
- * - `handleRegister`: Processes user registration requests, including user data validation, password hashing, and storing user information in the database.
- * - `handleLogin`: Authenticates users by comparing provided credentials against stored data, creating a session on successful authentication.
- * - `handleLogout`: Ends a user session and clears session data.
- * - `handleForgotPassword`: Initiates the password reset process (implementation placeholder).
- * - `handleLoadUser`: Retrieves session data for a logged-in user, demonstrating session management in action.
- * - `handleOptions`: Handles CORS preflight requests to ensure compatibility with web clients hosted on different origins.
+ * By defining a structured `Env` interface, the worker enforces type checking on environment variables,
+ * guaranteeing the availability of external resources like the user database (usersDB) and session management
+ * services. This approach enhances the reliability and maintainability of the worker in handling user
+ * authentication and session management tasks.
  *
- * This worker is designed as a foundational component for building secure, stateful applications on the Cloudflare Workers platform, demonstrating how serverless architectures can support complex application features like user authentication and session management.
+ * Features:
+ * - Registration: Validates user data and stores it securely in the database.
+ * - Login: Authenticates users by validating credentials and initiating a session.
+ * - Logout: Terminates an active user session and clears related data.
+ * - Password Reset: Facilitates password recovery processes for users.
+ * - Session Data Retrieval: Demonstrates real-time session management by fetching session data.
+ * - CORS Handling: Manages CORS preflight requests to support diverse web clients.
+ *
+ * This worker is architected to serve as a secure, scalable foundation for building web applications on the
+ * Cloudflare platform, showcasing the feasibility of leveraging serverless architectures for complex
+ * application functionalities such as user management and session control.
  */
+
+
+import { sendEmail } from './emailHandler';
+
 
 // Hashing algorithm used for securing passwords. Using bcrypt is not practical in a Worker environment.
 const hashingAlgo = 'SHA-256';
@@ -22,6 +39,13 @@ const hashingAlgo = 'SHA-256';
 export interface Env {
 	usersDB: D1Database; // Reference to Cloudflare's D1 Database for user data.
 	sessionService: Fetcher; // Direct reference to session-state Worker for session management.
+	EMAIL_FROM: string; // Email address to use as the sender for password reset emails.
+	EMAIL_FROM_NAME: string; // Name to use as the sender for password reset emails.
+	FORGOT_PASSWORD_URL: string; // URL to use as the password reset link in the email.
+	TOKEN_VALID_MINUTES: number; // Time in minutes for the password reset token to expire.
+	EMAIL_DKIM_DOMAIN: string; // Domain for DKIM signature
+	EMAIL_DKIM_SELECTOR: string; // Selector for DKIM signature
+	EMAIL_DKIM_PRIVATE_KEY: string; // Private key for DKIM signature
 }
 
 // CORS headers configuration to support cross-origin requests.
@@ -38,11 +62,16 @@ export default {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		let response: Response | null = null;
+
+		// Extract the last segment of the path, this allows us to run this API on a subpath of the domain of the site or Pages application, to reduce cross-origin issues.
+		const lastPath = path.substring(path.lastIndexOf('/'));
+		console.log('Last path:', lastPath);
+
 		// Handle CORS preflight requests.
 		if (request.method === "OPTIONS") {
 			response = handleOptions(request)
 		} else {
-			switch (path) {
+			switch (lastPath) {
 				case '/register':
 					response = await handleRegister(request, env);
 					break
@@ -54,6 +83,12 @@ export default {
 					break;
 				case '/forgot-password':
 					response = await handleForgotPassword(request, env);
+					break;
+				case '/forgot-password-validate':
+					response = await handleForgotPasswordValidate(request, env);
+					break;
+				case '/forgot-password-new-password':
+					response = await handleForgotPasswordNewPassword(request, env);
 					break;
 				case '/load-user':
 					response = await handleLoadUser(request, env);
@@ -223,12 +258,71 @@ async function handleLogout(request: Request, env: Env): Promise<Response> {
 
 // Placeholder for initiating the password reset process.
 async function handleForgotPassword(request: Request, env: Env): Promise<Response> {
-	const { email } = await request.json() as { email: string };
+	const { username } = await request.json() as { username: string };
+	console.log('Initiating password reset for username:', username);
 	// Initiate password reset process
-	// TODO - Implement the password reset process.
+	// load user by email
+	const query = 'SELECT * FROM User WHERE Username = ?';
+	const result = (await env.usersDB.prepare(query).bind(username).all()).results;
+	if (result.length === 0) {
+		return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+	}
+	const user = result[0];
+
+	// create a reset token
+	const resetToken = crypto.getRandomValues(new Uint8Array(16)).join('');
+
+	// store reset token in database
+	const updateQuery = 'UPDATE User SET ResetToken = ?, ResetTokenTime = ? WHERE Username = ?';
+	await env.usersDB.prepare(updateQuery).bind(resetToken, Date.now(), username).run();
+
+	// send email with reset link
+	const resetLink = `${env.FORGOT_PASSWORD_URL}?token=${resetToken}`;
+
+	const toEmail = username;
+	const toName = `${user.FirstName} ${user.LastName}`;
+	const subject = 'Password Reset Link';
+
+	const contentValue = `Click the following link to reset your password: ${resetLink}`;
+	await sendEmail(toEmail, toName, subject, contentValue, env);
 	return new Response(JSON.stringify({ message: 'Password reset initiated' }));
 }
 
+async function handleForgotPasswordValidate(request: Request, env: Env): Promise<Response> {
+	const { token } = await request.json() as { token: string };
+	// validate token
+	const query = 'SELECT * FROM User WHERE ResetToken = ?';
+	const result = (await env.usersDB.prepare(query).bind(token).all()).results;
+	if (result.length === 0) {
+		return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+	}
+	const user = result[0];
+
+	const millisecondsInMinute = 1000 * 60;
+	const tokenExpirationTime = env.TOKEN_VALID_MINUTES * millisecondsInMinute;
+
+	// check if token expired
+	if (Date.now() - (user.ResetTokenTime as number) > tokenExpirationTime) {
+		return new Response(JSON.stringify({ error: 'Token expired' }), { status: 400 });
+	}
+
+	return new Response(JSON.stringify({ message: 'Valid Token' }));
+}
+
+async function handleForgotPasswordNewPassword(request: Request, env: Env): Promise<Response> {
+	const { token, password } = await request.json() as { token: string, password: string };
+	// validate token
+	const query = 'SELECT * FROM User WHERE ResetToken = ?';
+	const result = (await env.usersDB.prepare(query).bind(token).all()).results;
+	if (result.length === 0) {
+		return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+	}
+	const user = result[0];
+	const hashedPassword = await hashPassword(password);
+	const updateQuery = 'UPDATE User SET Password = ?, ResetToken = NULL, ResetTokenTime = NULL WHERE Username = ?';
+	await env.usersDB.prepare(updateQuery).bind(hashedPassword, user.Username).run();
+	return new Response(JSON.stringify({ message: 'Password reset successful' }));
+}
 
 // Implement a function to hash passwords
 // While best practice is to use a slow hashing algorithm like bcrypt, doing so in a Worker is not practical.

@@ -115,7 +115,7 @@ The front end Pages application communicates with the REST APIs of the **user-mg
 
 In the Cloudflare Admin, select the Workers & Pages in the left hand nav.  You should see **user-mgmt** in the list of applications.  Click on it.  Next click on the Triggers tab.  You can see the Routes, Add Routes, and setup Custom Domains for your API.  Setup or pick a default route, so you should have a hostname that is either a Custom Domain of yours, or a Cloudflare domain that ends in workers.dev.
 
-In the Pages application, under packages/account-pages/static/js/, modify both of the script.js and loggedin.js files, replacing the API_BASE_URL with the hostname for the Route to your **user-mgmt** Worker.
+In the Pages application, under packages/account-pages/static/js/, modify api.js file, replacing the API_BASE_URL with the hostname for the Route to your **user-mgmt** Worker.
 
 ```javascript
 const API_BASE_URL = 'https://user-mgmt.yourdomain.com';
@@ -133,6 +133,21 @@ Now you should be able access your deployed Account Pages Application, with the 
 When you visit the URL of the latest Production Deployment of the Pages Application, you should see a basic login form, with a link to Register underneath.  You can register an account, and then after that is sucessful you can login.
 
 Once logged in, you can use the link on the bottom of the page to visit loggedin.html, which has a button that will fetch your user data from the current session, via the **session-state** Worker.  Please see the [sequence diagrams](DIAGRAMS.md) more info.
+
+
+## Local Development
+Note: This is still under development, and there are some issues with running everything locally at the moment.
+
+In the Pages application, under packages/account-pages/static/js/, modify api.js file, commenting out the real API_BASE_URL with the hostname for the Route to your **user-mgmt** Worker and uncomment the Dev API_BASE_URL which is pointing to localhost.
+
+Then in the main project root run
+
+```bash
+lerna run dev
+```
+
+You can access the front end at: [http://localhost:48080](http://localhost:48080)
+
 
 
 ## Project Structure and Deployment

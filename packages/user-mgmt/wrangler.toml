@@ -10,4 +10,16 @@ service = "session-state"
 [[d1_databases]]
 binding = "usersDB"
 database_name = "users"
-database_id = "<YOUR_DB_ID>"
+database_id = "08d1a683-e910-43c4-bce1-918319e23e7f"
+
+[vars]
+EMAIL_FROM = "noreply@justblackmagic.com"
+EMAIL_FROM_NAME = "Black Magic Consulting"
+
+EMAIL_DKIM_SELECTOR = "mailchannels"
+EMAIL_DKIM_DOMAIN = "justblackmagic.com"
+FORGOT_PASSWORD_URL = "https://account-pages.tools.justblackmagic.com/forgot-password-reset.html"
+TOKEN_VALID_MINUTES = 60
+
+[dev]
+port = 51512
