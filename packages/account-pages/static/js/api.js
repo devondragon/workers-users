@@ -5,7 +5,7 @@
 //const apiBaseUrl = 'https://user-mgmt.yourdomain.com';
 
 // Or, if you're running the user-mgmt worker under a route on the same domain as this front end:
-const apiBaseUrl = `${window.location.protocol}//${window.location.host}/user-mgmt`;
+const apiBaseUrl = `${window.location.protocol}//${window.location.host}/user-api`;
 
 
 export function callApi(endpoint, data = null) {

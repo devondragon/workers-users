@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "scripts": {
-        "deploy": "wrangler pages deploy static --project-name account-pages",
+        "deploy": "wrangler pages deploy static --project-name account-pages --branch=production",
         "dev": "wrangler pages dev static --port 48080 --ip '127.0.0.1' --inspector-port=9230",
         "start": "wrangler pages dev static --port 48080 --ip '127.0.0.1' --inspector-port=9230"
     },

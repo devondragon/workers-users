@@ -6,10 +6,15 @@ Leverage the power of serverless with stateful capabilities using Cloudflare Wor
 
 This framework is designed to work seamlessly on Cloudflare's serverless platform, offering a scalable, efficient way to manage user sessions and data without compromising on performance.
 
+
+## Screenshots
+![Alt text](/screenshots/login.png?raw=true "Login Page") ![Alt text](/screenshots/register.png?raw=true "Register Page")
+
+
 ### Components
 - **session-state**: A Cloudflare Worker that interfaces with a KV store to manage session data.
-- **user-mgmt**: Manages user functionalities (e.g., registration, login) using a D1 database for persistence.
-- **account-pages**: Demonstrates user registration, login, and retreiving session state, with static HTML, JavaScript, and CSS hosted on Cloudflare Pages.
+- **user-mgmt**: A Cloudflare Worker which manages user functionalities (e.g., registration, login) using a D1 database for persistence.
+- **account-pages**: A Cloudflare Pages site which demonstrates user registration, login, forgot password, and retreiving session state, with static HTML, JavaScript, and CSS. This is meant to be an example and a place to see or copy code from.
 
 
 ## Installation and Dependencies
@@ -121,11 +126,26 @@ In the Pages application, under packages/account-pages/static/js/, modify api.js
 const API_BASE_URL = 'https://user-mgmt.yourdomain.com';
 ```
 
+If you have the APIs running on a different domain from your front end website, you can run into issues where browsers will refuse to load cookies from the API domain, which is needed for session management. For instance, Safari's "Prevent cross-site tracking" setting will block this.
+
+It is best if you can run the **user-mgmt** Worker, and hence the API, on the same domain as the website you plan to use the APIs from, just under a path like /user-api/ or something similar. You can do this by configuring a [Route](https://developers.cloudflare.com/workers/platform/routes/#matching-behavior) for the **user-mgmt** Worker.  In that case you'll want to use the example in api.js that looks like this:
+
+```javascript
+const apiBaseUrl = `${window.location.protocol}//${window.location.host}/user-api`;
+```
+
 Now you'll need to redeploy the Pages application.  You can do this by re-running the "lerna run deploy" command in the project's root directory, or by running the following, while inside packages/account-pages/
 
 ```bash
 npx wrangler pages deploy static
 ```
+
+## Configuring Email
+For the Forgot Password flow to work, you'll need to have outbound emails sent from the **user-mgmt** Worker.
+
+In this repo, the Worker is setup to use the free MailChannels sending option only available from Cloudflare Workers.
+
+The setup for that is covered here: [Email Setup Guide](EMAILSETUP.md)
 
 ## Accessing and Testing
 Now you should be able access your deployed Account Pages Application, with the basic front end.  You can find the URL, and setup your own Custom Domains and more, in the Cloudflare web admin, under Workers & Pages, and select the "account-pages" Pages Application.
