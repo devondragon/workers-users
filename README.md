@@ -179,7 +179,7 @@ You will need to create the schema for the database.
 
 ```bash
 cd packages/user-mgmt
-npx wrangler d1 execute users --file=./schema.sql
+npx wrangler d1 execute users --file=./schema.sql --remote
 ```
 
 
