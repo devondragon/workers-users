@@ -8,30 +8,113 @@ This framework is designed to work seamlessly on Cloudflare's serverless platfor
 
 
 ## Screenshots
-![Alt text](/screenshots/login.png?raw=true "Login Page") ![Alt text](/screenshots/register.png?raw=true "Register Page")
+![Login Page](/screenshots/login.png?raw=true "Login Page") ![Register Page](/screenshots/register.png?raw=true "Register Page")
 
 
-### Components
+## Components
 - **session-state**: A Cloudflare Worker that interfaces with a KV store to manage session data.
 - **user-mgmt**: A Cloudflare Worker which manages user functionalities (e.g., registration, login) using a D1 database for persistence.
-- **account-pages**: A Cloudflare Pages site which demonstrates user registration, login, forgot password, and retreiving session state, with static HTML, JavaScript, and CSS. This is meant to be an example and a place to see or copy code from.
+- **account-pages**: A Cloudflare Pages site which demonstrates user registration, login, forgot password, and retrieving session state, with static HTML, JavaScript, and CSS. This is meant to be an example and a place to see or copy code from.
 
+
+## How to use this Framework
+Because this project provides utility functions, we recommend forking it, and then cloning your fork as a submodule in a new or existing project. This parent project will contain your project's other Workers, resources, and Pages applications. You can refresh your fork from this repo whenever you want to merge in changes, fixes, and new features from this repo.  Putting you in full control.
+
+If you haven't used git submodules before, it's a feature that allows you to checkout a git repo (in this case your fork of this project) as a sub-directory of another git repo (your main project). You can read more about it here: [Git Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules).
+
+If you plan to use the workers-users framework in multiple projects, you can use branches of your fork to keep a separate version of this framework for each project, as you will need to modify some resource names in this framework to run multiple independant instances of the D1 Users database and KV Session State store.
+
+### Step 1 - Fork First
+1) As discussed above the first thing you should do is to fork this repo to your own GitHub!
+
+
+### With a New Project
+The easiest way to use this framework is within a multi package mono repo project using [lerna](https://lerna.js.org). If you're starting from scratch you can initialize a new lerna project.
+
+2) Create a new directory for your project, and navigate inside of it:
+
+```bash
+mkdir myproject
+cd myproject
+```
+
+3) Initialize the lerna project, which also initializes your local git repo:
+
+```bash
+npx lerna init
+```
+
+4) Create a packages directory for your application's components (Workers, Pages applications, etc...):
+
+```bash
+mkdir packages
+```
+
+Lerna automatically adds directories under packages to the list of applications it knows about, via the workspaces attribute in the top level package.json file.
+
+
+5) Checkout your fork of this project as a git submodule inside your new project:
+
+From the top level directory of your new project "myproject":
+
+```bash
+git submodule add https://github.com/%YOUR-REPO-PATH%.git
+```
+
+6) Add the new submodule's packages to your project
+Edit the top level package.json file, and change the workspaces attribute to look like this:
+
+```
+"workspaces": [
+    "workers-users/packages/*",
+    "packages/*"
+  ],
+```
+
+
+### With an existing Project
+If you have an existing project you want to add the Workers User Framework to, you'll need to move your existing code into directories under a top level packages directory (if it's not already setup like this).
+
+2) Refactor your existing code, if needed, to be in one or more application directories under a "packages" directory in the top level of your project.
+
+3) Add, if needed, the workspaces attribute to your top level package.json file so it looks like this:
+```bash
+ "workspaces": [
+    "packages/*"
+  ],
+  ```
+
+4) Continue the steps from the New Project section above starting with step #3
+
+
+### Project Structure
+Your project structure should look like this:
+
+```
+myproject/
+  package.json
+  lerna.json
+  packages/
+    MyFrontEndPagesApp/
+    MyWorker1/
+    MyWorker2/
+  workers-users/
+    package.json
+    lerna.json
+    packages/
+      account-pages/
+      sessions-state/
+      user-mgmt/
+...
+```
 
 ## Installation and Dependencies
 
 ### Install Node.js and NPM
-You will need to have a Node version of 16.17.0 or later (as required by Wrangler). The Node installation include NPM (the Node Package Manager).
+You will need to have a Node version of 16.17.0 or later (as required by Wrangler). The Node installation includes NPM (the Node Package Manager).
 
 [Install Node.js](https://nodejs.org/en/)
 
-
-### Clone, Fork, or Download this project
-First you should clone (or fork and clone) this repository:
-
-```bash
-git clone https://github.com/devondragon/workers-users.git
-cd workers-users
-```
 
 ### Install all Node Packages
 Inside the main repo directory:
@@ -44,6 +127,15 @@ This will install [Cloudflare Wrangler](https://developers.cloudflare.com/worker
 
 ## Setup Cloudflare Infrastructure
 There are a few Cloudflare infrastructure pieces that will need to be created. Currently these have to be done manually using Wrangler. It should be possible to automate all of this using Terraform with the Cloudflare provider, but for this project I am keeping things simple.
+
+PLEASE NOTE: If you may wish to use the workers-users framework in more than one application to be deployed in your Cloudflare account, then you should rename the workers to be unique.  You can add a application specific prefix or suffix to the name of each worker, e.g. “myapp-user-mgmt” and “myapp-session-state”.  In the workers-users wrangler.toml update the services binding to use the new name of the session-state worker.
+
+Create the KV and D1 instances with unique app specific names.
+
+Update the KV and D1 bindings in the wrangler.toml files to point to the new correct instances.
+
+
+
 
 ### Setup Cloudflare Authentication
 
@@ -102,6 +194,10 @@ npx wrangler pages project create account-pages
 You can accept the default name for the production branch, as we'll be deploying to it using Wrangler and Lerna.
 
 If you change the name of this, be sure to update the name in packages/account-pages/wrangler.toml and package.json.
+
+
+I do not recommend using the account-pages Pages application directly other than for initial testing. It’s really there as an example to leverage.  So typically your user UX (registration, forgot password, login, etc…) would be in one (or more) Pages applications under packages/ in your main project root (or running outside of Cloudflare entirely).  But you can copy or reference the client side Javascript from the account-pages application.
+
 
 
 ## Initial Deployment
@@ -168,8 +264,6 @@ lerna run dev
 
 You can access the front end at: [http://localhost:48080](http://localhost:48080)
 
-
-
 ## Project Structure and Deployment
 Because this project consists of two Workers and one Pages application, I am using [Lerna](https://lerna.js.org) to manage multiple JavaScript packages from a single repository.
 
@@ -182,7 +276,10 @@ I am using [TypeScript](https://www.typescriptlang.org) for the Workers' code.
 
 ## Feedback and Contribution
 
-I welcome feedback and contributions from the community! Whether you have suggestions for improvements, found a bug, or want to contribute new features, your input is highly valued.
+I welcome feedback and contributions from the community! Whether you have suggestions for improvements, found a bug, or want to contribute new features, your input is highly valued. I am new to NodeJS, Cloudflare Workers, etc..  So if there are better ways to be doing things, let me know:)
+
+### Contributing
+[Contributing Guide](CONTRIBUTING.md)
 
 ### Reporting Issues
 If you encounter any issues or have feedback on how I can improve the framework, please use the GitHub Issues section of our repository. When reporting an issue, try to include as much relevant information as possible, such as:
@@ -193,26 +290,3 @@ If you encounter any issues or have feedback on how I can improve the framework,
 - Your environment details (e.g., browser version, Cloudflare Workers CLI version).
 
 This information will help us understand and address the issue more effectively.
-
-### Contributing via Pull Requests
-I encourage contributions in the form of Pull Requests (PRs). Whether it's a bug fix, a new feature, or improvements to the documentation, your contributions are welcome. Please follow these steps to contribute:
-
-1. **Fork the Repository**: Start by forking the repository to your GitHub account.
-
-2. **Clone the Forked Repository**: Clone the repository to your local machine to start working on your changes.
-
-3. **Create a New Branch**: For each set of changes or new feature, create a new branch in your fork.
-
-4. **Make Your Changes**: Implement your changes, bug fixes, or additional features on your branch. Ensure that your code adheres to the existing code style and that you've tested your changes.
-
-5. **Commit Your Changes**: Make concise and meaningful commit messages that explain the changes you've made.
-
-6. **Submit a Pull Request**: Push your changes to your fork and then submit a pull request to the main repository. In your pull request description, provide a detailed explanation of the changes and why they're needed.
-
-7. **Review Process**: Your pull request will be reviewed by the maintainers. Be open to feedback and be prepared to make further adjustments based on the review.
-
-8. **Merge**: Once your pull request is approved, a maintainer will merge it into the main repository.
-
-
-## End Note
-I am new to NodeJS, Cloudflare Workers, etc..  So if there are better ways to be doing things, let me know:)
