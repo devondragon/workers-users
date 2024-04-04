@@ -163,7 +163,7 @@ In the Pages application, under packages/account-pages/static/js/, modify api.js
 Then in the main project root run
 
 ```bash
-lerna run dev
+lerna run dev --parallel
 ```
 
 You can access the front end at: [http://localhost:48080](http://localhost:48080)

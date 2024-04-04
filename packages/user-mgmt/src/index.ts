@@ -93,6 +93,9 @@ export default {
 				case '/load-user':
 					response = await handleLoadUser(request, env);
 					break;
+				case '/is-logged-in':
+					response = await handleIsLoggedIn(request, env);
+					break;
 				default:
 					response = new Response('Not Found', { status: 404 });
 			}
@@ -136,6 +139,16 @@ async function handleLoadUser(request: Request, env: Env): Promise<Response> {
 		});
 	}
 	return new Response(JSON.stringify({ error: 'User not logged in' }), { status: 401 });
+}
+
+// Checks if a user is logged in by verifying the presence of an active session.
+async function handleIsLoggedIn(request: Request, env: Env): Promise<Response> {
+	let loggedIn = false;
+	const response = await handleLoadUser(request, env);
+	if (response.status === 200 && response.body !== null) {
+		loggedIn = true;
+	}
+	return new Response(JSON.stringify({ loggedIn }));
 }
 
 // Processes user registration requests, including validation, password hashing, and database insertion.
