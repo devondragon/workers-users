@@ -13,11 +13,11 @@
         <div id="login-form" class="form-section">
             <div id="login-message" class="message hidden">
             </div>
-            <div id="loggedin-link" class="message hidden">
+            <div id="loggedin-link" class="message hidden loggedInOnly">
                 <a href="loggedin.html">Click here to continue.</a>
             </div>
             <h2>Login</h2>
-            <form id="loginForm">
+            <form id="loginForm" class="notLoggedInOnly">
                 <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" required />
                 <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required />
                 <button type="submit" class="submit-button">Login</button>
@@ -26,7 +26,7 @@
             <p class="toggle-text">Forgot Your Password? <a href="forgot-password.html">Password Reset</a></p>
         </div>
 
-        <div id="register-form" class="form-section">
+        <div id="register-form" class="form-section notLoggedInOnly">
             <div id="register-message" class="message"></div>
             <h2>Register</h2>
             <form id="registerForm">
@@ -39,7 +39,7 @@
             <p class="toggle-text">Already have an account? <span id="toggleLoginForm">Login</span></p>
         </div>
 
-        <div id="logged-in-section" class="form-section">
+        <div id="logged-in-section" class="form-section loggedInOnly">
             If you are already logged in, you can visit this page for your user data: <a href="loggedin.html">Logged In</a>
         </div>
 

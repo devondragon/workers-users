@@ -69,5 +69,38 @@ function displayMessage(formType, messageType, message) {
     messageElement.className = 'message ' + messageType;
 }
 
+
+
+async function isLoggedInStatus() {
+    try {
+        const data = await callApi('/is-logged-in');
+        return data.loggedIn;
+    } catch (error) {
+        console.error('Error checking login status:', error);
+        return false;
+    }
+}
+
+async function checkLoginAndUpdateUI() {
+    const isLoggedIn = await isLoggedInStatus();
+    console.log(isLoggedIn); // Logs the actual value
+
+    updateVisibility(isLoggedIn);
+}
+
+function updateVisibility(isLoggedIn) {
+    document.querySelectorAll('.loggedInOnly').forEach(element => {
+        element.classList.toggle('hidden', !isLoggedIn);
+    });
+
+    document.querySelectorAll('.notLoggedInOnly').forEach(element => {
+        element.classList.toggle('hidden', isLoggedIn);
+    });
+}
+
+// Initiate the login check and UI update process
+checkLoginAndUpdateUI();
+
+
 // Initialize with the login form visible
 document.getElementById("login-form").style.display = "block";
