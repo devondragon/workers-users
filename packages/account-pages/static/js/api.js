@@ -1,12 +1,20 @@
 // For local development, use the following line:
-// const apiBaseUrl = 'http://localhost:51512';
+//const apiBaseUrl = 'http://localhost:51512';
 
 // For production, use the following line with your domain name:
 //const apiBaseUrl = 'https://user-mgmt.yourdomain.com';
 
 // Or, if you're running the user-mgmt worker under a route on the same domain as this front end:
-const apiBaseUrl = `${window.location.protocol}//${window.location.host}/user-api`;
+//const apiBaseUrl = `${window.location.protocol}//${window.location.host}/user-api`;
 
+
+let apiBaseUrl;
+
+if (window.location.hostname === 'localhost') {
+    apiBaseUrl = 'http://localhost:51512';
+} else {
+    apiBaseUrl = `${window.location.protocol}//${window.location.host}/user-api`;
+}
 
 export function callApi(endpoint, data = null) {
     const url = apiBaseUrl + endpoint;
