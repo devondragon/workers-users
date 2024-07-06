@@ -1,22 +1,6 @@
-/**
- * This module provides functionality for sending emails within a Cloudflare Workers environment. It is designed to
- * integrate with external email services, specifically using the MailChannels API for email transmission. The module
- * supports DKIM (DomainKeys Identified Mail) signatures to enhance email security and deliverability. It allows sending
- * emails with personalized content and subject lines to specified recipients.
- *
- * The `sendEmail` function encapsulates the process of constructing the email payload, including DKIM configuration,
- * and sending the email through a POST request to the MailChannels API. Error handling mechanisms are in place to
- * ensure robustness and provide feedback on the email sending process.
- *
- * Interfaces are defined for the structure of email recipients, content, DKIM data, and the overall email payload
- * to ensure type safety and clarity throughout the email construction and sending process.
- *
- * The `Env` interface outlines the expected environment variables, including configurations for the email sender,
- * DKIM setup, and other service-specific settings.
- */
+import { Env } from './env';
 
 // Interfaces
-
 interface EmailRecipient {
     email: string;
     name: string;
@@ -25,12 +9,6 @@ interface EmailRecipient {
 interface EmailContent {
     type: string;
     value: string;
-}
-
-interface DkimData {
-    dkim_domain: string;
-    dkim_selector: string;
-    dkim_private_key: string;
 }
 
 interface EmailPayload {
@@ -44,19 +22,6 @@ interface EmailPayload {
     subject: string;
     content: EmailContent[];
 }
-
-export interface Env {
-    usersDB: D1Database; // Reference to Cloudflare's D1 Database for user data.
-    sessionService: Fetcher; // Direct reference to session-state Worker for session management.
-    EMAIL_FROM: string; // Email address to use as the sender for password reset emails.
-    EMAIL_FROM_NAME: string; // Name to use as the sender for password reset emails.
-    FORGOT_PASSWORD_URL: string; // URL to use as the password reset link in the email.
-    TOKEN_VALID_MINUTES: number; // Time in minutes for the password reset token to expire.
-    EMAIL_DKIM_DOMAIN: string; // Domain for DKIM signature
-    EMAIL_DKIM_SELECTOR: string; // Selector for DKIM signature
-    EMAIL_DKIM_PRIVATE_KEY: string; // Private key for DKIM signature
-}
-
 
 /**
  * Sends an email using MailChannels API with specified recipient, subject, and content.
