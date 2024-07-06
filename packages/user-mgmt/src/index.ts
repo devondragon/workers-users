@@ -62,6 +62,7 @@ router
 	.post('*/forgot-password', (request, env, ctx) => handleForgotPassword(request, env))
 	.post('*/forgot-password-validate', (request, env, ctx) => handleForgotPasswordValidate(request, env))
 	.post('*/forgot-password-new-password', (request, env, ctx) => handleForgotPasswordNewPassword(request, env))
-	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env));
+	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env))
+	.all('*', () => new Response('Not Found', { status: 404 }));
 
 export default { ...router }; // Export the router

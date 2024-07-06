@@ -18,79 +18,49 @@
  * It is designed to be deployed as part of a Cloudflare Worker.
  *
  */
+import { AutoRouter, IRequest } from 'itty-router';
+import { Env } from './env';
+import {
+	createSession,
+	getSessionData,
+	deleteSession,
+} from './session';
 
+const router = AutoRouter<IRequest, [Env, ExecutionContext]>();
 
-export interface Env {
-	sessionstore: KVNamespace;
-}
-
-function generateSessionId(): string {
-	// Generate a random and unique session identifier.
-	// This should be VERY unique, but with a very high traffic system or one with extremely high security requirements,
-	// you may want to ensure the key is not in use.
-	return crypto.randomUUID();
-}
-
-// Create a new session in the KV store
-async function createSession(data: any, env: Env): Promise<string> {
-	const sessionId = generateSessionId();
-	try {
-		await env.sessionstore.put(sessionId, JSON.stringify(data));
-	} catch (error) {
-		console.error("Error creating session: " + error);
-	}
-	return sessionId;
-}
-
-// Update session data in the KV store
-async function updateSession(sessionId: string, data: any, env: Env): Promise<void> {
-	await env.sessionstore.put(sessionId, JSON.stringify(data));
-}
-
-// Add data to an existing session
-async function addToSession(sessionId: string, data: any, env: Env): Promise<void> {
-	const sessionData = await getSessionData(sessionId, env);
-	await updateSession(sessionId, { ...sessionData, ...data }, env);
-}
-
-// Retrieve session data from the KV store
-async function getSessionData(sessionId: string, env: Env): Promise<any> {
-	const data = await env.sessionstore.get(sessionId);
-	return data ? JSON.parse(data) : null;
-}
-
-// Delete a session from the KV store
-async function deleteSession(sessionId: string, env: Env): Promise<void> {
-	await env.sessionstore.delete(sessionId);
-}
+router
+	.post('/create', async (request, env, ctx) => {
+		try {
+			const requestData = await request.json();
+			const sessionId = await createSession(requestData, env);
+			return new Response(sessionId, { status: 201 });
+		} catch (error) {
+			return new Response('Failed to create session', { status: 500 });
+		}
+	})
+	.get('/get/:sessionId', async ({ params }, env) => {
+		try {
+			const { sessionId } = params;
+			const data = await getSessionData(sessionId, env);
+			if (!data) {
+				return new Response('Session not found', { status: 404 });
+			}
+			return new Response(JSON.stringify(data), { status: 200 });
+		} catch (error) {
+			return new Response('Failed to retrieve session', { status: 500 });
+		}
+	})
+	.delete('/delete/:sessionId', async ({ params }, env) => {
+		try {
+			const { sessionId } = params;
+			await deleteSession(sessionId, env);
+			return new Response('Session deleted', { status: 200 });
+		} catch (error) {
+			return new Response('Failed to delete session', { status: 500 });
+		}
+	})
+	.all('*', () => new Response('Invalid request', { status: 404 }));
 
 export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		const url = new URL(request.url);
-		const path = url.pathname;
-
-		try {
-			if (path === '/create' && request.method === 'POST') {
-				const requestData = await request.json();
-				const sessionId = await createSession(requestData, env);
-				return new Response(sessionId);
-
-			} else if (path.startsWith('/get/') && request.method === 'GET') {
-				const sessionId = path.split('/')[2];
-				const data = await getSessionData(sessionId, env);
-				return new Response(JSON.stringify(data));
-
-			} else if (path.startsWith('/delete/') && request.method === 'DELETE') {
-				const sessionId = path.split('/')[2];
-				await deleteSession(sessionId, env);
-				return new Response('Session deleted');
-
-			} else {
-				return new Response('Invalid request', { status: 404 });
-			}
-		} catch (error) {
-			console.error("Error processing request: " + error);
-			return new Response('Error processing request', { status: 500 });
-		}
-	},
+	fetch: router.handle,
 };
