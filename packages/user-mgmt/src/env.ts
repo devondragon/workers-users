@@ -11,6 +11,8 @@ export interface Env {
     EMAIL_DKIM_DOMAIN: string;
     EMAIL_DKIM_SELECTOR: string;
     EMAIL_DKIM_PRIVATE_KEY: string;
+    RBAC_ENABLED: string;
+    SUPER_ADMIN_EMAIL?: string;
 }
 
 export function getUsersDB(env: Env): D1Database {
@@ -47,4 +49,12 @@ export function getEmailDkimSelector(env: Env): string {
 
 export function getEmailDkimPrivateKey(env: Env): string {
     return env.EMAIL_DKIM_PRIVATE_KEY;
+}
+
+export function getRbacEnabled(env: Env): boolean {
+    return env.RBAC_ENABLED === "true";
+}
+
+export function getSuperAdminEmail(env: Env): string | undefined {
+    return env.SUPER_ADMIN_EMAIL;
 }

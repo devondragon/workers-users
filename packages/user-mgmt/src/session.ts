@@ -1,12 +1,25 @@
 // session.ts
-import { Env } from './env';
+import { Env, getRbacEnabled } from './env';
+import { getUserPermissions } from './rbac';
+import { SessionData } from './types/rbac';
 
 export async function createSession(env: Env, user: any): Promise<string> {
-    const sessionData = {
+    const sessionData: SessionData = {
         username: user.Username,
         firstName: user.FirstName,
         lastName: user.LastName,
     };
+
+    // Include permissions if RBAC is enabled
+    if (getRbacEnabled(env)) {
+        try {
+            const permissions = await getUserPermissions(env, user.UserID);
+            sessionData.permissions = permissions;
+        } catch (error) {
+            console.error('Error fetching user permissions:', error);
+            // Continue without permissions rather than failing the session creation
+        }
+    }
 
     const sessionCreationRequest = new Request("https://session-state.d1.compact.workers.dev/create", {
         method: 'POST',

@@ -243,6 +243,37 @@ In this repo, the Worker is setup to use the free MailChannels sending option on
 
 The setup for that is covered here: [Email Setup Guide](EMAILSETUP.md)
 
+## Role-Based Access Control (RBAC)
+
+The framework includes an optional Role-Based Access Control system that allows you to implement fine-grained permissions in your applications. RBAC provides:
+
+- **Flexible Permission Management**: Define custom permissions using a hierarchical `resource:action` format
+- **Role Assignment**: Create roles and assign them to users with specific permission sets
+- **API Integration**: Built-in REST endpoints for managing roles and permissions
+- **Optional Implementation**: RBAC can be enabled or disabled based on your needs
+
+### Quick Start
+
+1. Enable RBAC in your `wrangler.toml`:
+   ```toml
+   [vars]
+   RBAC_ENABLED = "true"
+   RBAC_DEFAULT_ROLE = "user"
+   ```
+
+2. Run the RBAC database migration:
+   ```bash
+   cd packages/user-mgmt
+   npx wrangler d1 execute users --file=./migrations/rbac.sql --remote
+   ```
+
+3. Deploy the updated worker:
+   ```bash
+   npm run deploy
+   ```
+
+For detailed configuration, migration guides, API documentation, and usage examples, see the comprehensive [RBAC Documentation](RBAC.md).
+
 ## Accessing and Testing
 Now you should be able access your deployed Account Pages Application, with the basic front end.  You can find the URL, and setup your own Custom Domains and more, in the Cloudflare web admin, under Workers & Pages, and select the "account-pages" Pages Application.
 

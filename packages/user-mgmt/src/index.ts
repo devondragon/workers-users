@@ -29,7 +29,8 @@
  */
 import { AutoRouter, cors, IRequest } from 'itty-router';
 // Defines the environment variables required by the worker.
-import { Env } from './env';
+import { Env, getRbacEnabled } from './env';
+import { bootstrapSuperAdmin } from './rbac/bootstrap';
 
 import {
 	handleRegister,
@@ -39,6 +40,12 @@ import {
 	handleForgotPasswordValidate,
 	handleForgotPasswordNewPassword,
 	handleLoadUser,
+	handleListRoles,
+	handleCreateRole,
+	handleListPermissions,
+	handleGetUserRoles,
+	handleAssignRole,
+	handleRemoveRole,
 } from './handlers';
 
 // Middleware for CORS preflight and response handling
@@ -49,8 +56,24 @@ const { preflight, corsify } = cors({
 	maxAge: 84600,
 });
 
+// Flag to ensure bootstrap only runs once per worker instance
+let bootstrapCompleted = false;
+
+// Middleware to run bootstrap on first request
+async function bootstrapMiddleware(request: IRequest, env: Env, ctx: ExecutionContext) {
+	if (!bootstrapCompleted && getRbacEnabled(env)) {
+		bootstrapCompleted = true;
+		try {
+			await bootstrapSuperAdmin(env);
+		} catch (error) {
+			console.error('Error during RBAC bootstrap:', error);
+			// Continue processing the request even if bootstrap fails
+		}
+	}
+}
+
 const router = AutoRouter<IRequest, [Env, ExecutionContext]>({
-	before: [preflight],  // add preflight upstream
+	before: [preflight, bootstrapMiddleware],  // add preflight and bootstrap upstream
 	finally: [corsify],   // and corsify downstream
 });
 
@@ -62,7 +85,46 @@ router
 	.post('*/forgot-password', (request, env, ctx) => handleForgotPassword(request, env))
 	.post('*/forgot-password-validate', (request, env, ctx) => handleForgotPasswordValidate(request, env))
 	.post('*/forgot-password-new-password', (request, env, ctx) => handleForgotPasswordNewPassword(request, env))
-	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env))
+	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env));
+
+// Add RBAC routes if RBAC is enabled
+router
+	.get('*/rbac/roles', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleListRoles(request, env);
+	})
+	.post('*/rbac/roles', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleCreateRole(request, env);
+	})
+	.get('*/rbac/permissions', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleListPermissions(request, env);
+	})
+	.get('*/rbac/users/:userId/roles', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleGetUserRoles(request, env);
+	})
+	.post('*/rbac/users/:userId/roles', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleAssignRole(request, env);
+	})
+	.delete('*/rbac/users/:userId/roles/:roleId', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleRemoveRole(request, env);
+	})
 	.all('*', () => new Response('Not Found', { status: 404 }));
 
 export default { ...router }; // Export the router

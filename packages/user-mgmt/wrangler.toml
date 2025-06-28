@@ -21,5 +21,9 @@ EMAIL_DKIM_DOMAIN = "justblackmagic.com"
 FORGOT_PASSWORD_URL = "https://account-pages.tools.justblackmagic.com/forgot-password-reset.html"
 TOKEN_VALID_MINUTES = 60
 
+# RBAC Configuration
+RBAC_ENABLED = "false"
+SUPER_ADMIN_EMAIL = ""
+
 [dev]
 port = 51512

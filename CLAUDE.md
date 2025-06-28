@@ -11,6 +11,7 @@ This is a Cloudflare Workers-based user management framework that provides serve
 - **Session Management**: Service-to-service communication between workers
 - **Database**: D1 for user data persistence, KV for session storage
 - **API Design**: RESTful endpoints with CORS support for cross-origin requests
+- **RBAC System**: Optional role-based access control with hierarchical permissions
 
 ## Commands
 ### Development
@@ -72,6 +73,9 @@ workers-users/
 - `EMAIL_DKIM_DOMAIN`: Domain for DKIM signing
 - `FORGOT_PASSWORD_URL`: Reset password page URL
 - `TOKEN_VALID_MINUTES`: Password reset token validity (default: 60)
+- `RBAC_ENABLED`: Enable role-based access control (default: false)
+- `RBAC_DEFAULT_ROLE`: Default role for new users (optional)
+- `RBAC_ADMIN_EMAIL`: Email for initial admin user (optional)
 
 ### Bindings
 - **D1 Database**: `usersDB` - User data storage
@@ -87,6 +91,18 @@ workers-users/
 - `POST /forgot-password-validate` - Validate reset token
 - `POST /forgot-password-new-password` - Update password
 - `GET /load-user` - Get current user data
+
+### RBAC Endpoints (when RBAC_ENABLED=true)
+- `GET /api/roles` - List all roles
+- `GET /api/roles/:roleId` - Get role details
+- `POST /api/roles` - Create new role
+- `PUT /api/roles/:roleId` - Update role
+- `DELETE /api/roles/:roleId` - Delete role
+- `GET /api/users/:userId/roles` - Get user's roles
+- `POST /api/users/:userId/roles` - Assign role to user
+- `DELETE /api/users/:userId/roles/:roleId` - Remove role from user
+- `GET /api/users/:userId/permissions` - Get user's effective permissions
+- `POST /api/permissions/check` - Check specific permissions
 
 ### session-state Worker
 - `POST /create` - Create new session
