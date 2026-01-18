@@ -42,6 +42,7 @@ export {
     logRoleRemoved,
     logRoleCreated,
     logBootstrapSuperAdmin,
+    logAuthorizationDenied,
     getAuditLogs,
     getIpAddressFromRequest
 } from './audit';

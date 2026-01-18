@@ -13,6 +13,8 @@ export interface Env {
     EMAIL_DKIM_PRIVATE_KEY: string;
     RBAC_ENABLED: string;
     SUPER_ADMIN_EMAIL?: string;
+    /** Security flag: Must be set to "true" to confirm admin email ownership before bootstrap */
+    SUPER_ADMIN_EMAIL_CONFIRMED?: string;
     /** Enable IP address logging in audit logs (GDPR consideration - disabled by default) */
     LOG_IP_ADDRESS?: string;
 }
@@ -59,6 +61,15 @@ export function getRbacEnabled(env: Env): boolean {
 
 export function getSuperAdminEmail(env: Env): string | undefined {
     return env.SUPER_ADMIN_EMAIL;
+}
+
+/**
+ * Check if the super admin email has been confirmed.
+ * This is a security measure to prevent attackers from registering with a known admin email.
+ * The admin must explicitly set SUPER_ADMIN_EMAIL_CONFIRMED=true after verifying email ownership.
+ */
+export function getSuperAdminEmailConfirmed(env: Env): boolean {
+    return env.SUPER_ADMIN_EMAIL_CONFIRMED === 'true';
 }
 
 /**

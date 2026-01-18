@@ -304,6 +304,36 @@ export async function getAuditLogs(
 }
 
 /**
+ * Logs a failed authorization attempt.
+ * Used to track when users attempt to access resources without proper permissions.
+ *
+ * @param env - The environment configuration
+ * @param userId - The ID of the user who was denied (if known)
+ * @param username - The username of the user who was denied (if known)
+ * @param requiredPermission - The permission that was required
+ * @param ipAddress - Optional IP address of the user
+ */
+export async function logAuthorizationDenied(
+    env: Env,
+    userId: number | null,
+    username: string | null,
+    requiredPermission: string,
+    ipAddress?: string
+): Promise<void> {
+    await logAuditEvent(env, {
+        action: 'AUTHORIZATION_DENIED',
+        actorId: userId,
+        actorUsername: username,
+        targetType: 'SYSTEM',
+        targetId: null,
+        targetName: null,
+        details: JSON.stringify({ requiredPermission }),
+        ipAddress: ipAddress ?? null,
+        success: false,
+    });
+}
+
+/**
  * Extracts the IP address from a request.
  *
  * @param request - The incoming HTTP request

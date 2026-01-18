@@ -60,16 +60,28 @@ const { preflight, corsify } = cors({
 // Flag to ensure bootstrap only runs once per worker instance
 let bootstrapCompleted = false;
 
-// Middleware to run bootstrap on first request
-async function bootstrapMiddleware(request: IRequest, env: Env, ctx: ExecutionContext) {
+/**
+ * Middleware to run bootstrap on first request.
+ *
+ * RACE CONDITION NOTE: In a high-concurrency scenario with multiple simultaneous
+ * requests during worker startup, there is a small race window where multiple
+ * requests could pass the `!bootstrapCompleted` check before the flag is set.
+ * This is acceptable because:
+ * 1. The flag is set immediately after the check to minimize the window
+ * 2. The underlying database operations are idempotent (INSERT OR IGNORE)
+ * 3. A proper lock would add significant complexity without material benefit
+ *
+ * Uses ctx.waitUntil() for non-blocking execution so bootstrap doesn't delay requests.
+ */
+function bootstrapMiddleware(request: IRequest, env: Env, ctx: ExecutionContext) {
 	if (!bootstrapCompleted && getRbacEnabled(env)) {
-		bootstrapCompleted = true;
-		try {
-			await bootstrapSuperAdmin(env);
-		} catch (error) {
-			console.error('Error during RBAC bootstrap:', error);
-			// Continue processing the request even if bootstrap fails
-		}
+		bootstrapCompleted = true; // Set immediately to minimize race window
+		ctx.waitUntil(
+			bootstrapSuperAdmin(env).catch(error => {
+				console.error('Error during RBAC bootstrap:', error);
+				// Continue processing even if bootstrap fails
+			})
+		);
 	}
 }
 

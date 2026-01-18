@@ -28,6 +28,24 @@ describe("RBAC Bootstrap Module", () => {
             expect(roles.map((r) => r.name)).not.toContain("SUPER_ADMIN");
         });
 
+        it("should skip when SUPER_ADMIN_EMAIL_CONFIRMED is not set (security feature)", async () => {
+            const mockEnv = createMockEnv({
+                SUPER_ADMIN_EMAIL: USERNAMES.noRoles,
+                SUPER_ADMIN_EMAIL_CONFIRMED: "false", // Not confirmed
+            });
+
+            // Verify user has no roles initially
+            const rolesBefore = await getUserRoles(mockEnv, USER_IDS.noRoles);
+            expect(rolesBefore.map((r) => r.name)).not.toContain("SUPER_ADMIN");
+
+            // Should complete without error but not assign role
+            await expect(bootstrapSuperAdmin(mockEnv)).resolves.not.toThrow();
+
+            // Verify no role was assigned (security protection)
+            const rolesAfter = await getUserRoles(mockEnv, USER_IDS.noRoles);
+            expect(rolesAfter.map((r) => r.name)).not.toContain("SUPER_ADMIN");
+        });
+
         it("should skip when user with email is not found", async () => {
             const mockEnv = createMockEnv({
                 SUPER_ADMIN_EMAIL: "nonexistent@test.com",

@@ -75,7 +75,9 @@ workers-users/
 - `TOKEN_VALID_MINUTES`: Password reset token validity (default: 60)
 - `RBAC_ENABLED`: Enable role-based access control (default: false)
 - `RBAC_DEFAULT_ROLE`: Default role for new users (optional)
-- `RBAC_ADMIN_EMAIL`: Email for initial admin user (optional)
+- `SUPER_ADMIN_EMAIL`: Email for initial admin user (optional)
+- `SUPER_ADMIN_EMAIL_CONFIRMED`: Must be "true" to confirm admin email ownership before bootstrap (security feature)
+- `LOG_IP_ADDRESS`: Enable IP address logging in audit logs (GDPR consideration - default: false)
 
 ### Bindings
 - **D1 Database**: `usersDB` - User data storage

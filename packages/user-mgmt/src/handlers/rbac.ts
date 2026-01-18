@@ -18,6 +18,56 @@ import { Role, Permission, SessionData } from '../types/rbac';
 import { AuditLogQueryParams } from '../rbac/audit';
 
 /**
+ * Helper function to create JSON error responses.
+ * Consolidates the repeated error response pattern.
+ *
+ * @param message - The error message to include in the response
+ * @param status - The HTTP status code
+ * @returns A Response object with the error message
+ */
+function createErrorResponse(message: string, status: number): Response {
+    return new Response(JSON.stringify({ error: message }), {
+        status,
+        headers: { 'Content-Type': 'application/json' }
+    });
+}
+
+/**
+ * Type guard to validate session data has the expected shape.
+ * Provides runtime safety for data loaded from session storage.
+ */
+function isValidSessionData(data: unknown): data is SessionData {
+    if (!data || typeof data !== 'object') {
+        return false;
+    }
+    const obj = data as Record<string, unknown>;
+    return (
+        typeof obj.username === 'string' &&
+        typeof obj.firstName === 'string' &&
+        typeof obj.lastName === 'string' &&
+        (obj.permissions === undefined || Array.isArray(obj.permissions))
+    );
+}
+
+/**
+ * Safely parse an integer from a query parameter with NaN handling.
+ * Returns the default value if parsing fails or result is NaN.
+ */
+function safeParseInt(value: string | null, defaultValue: number, maxValue?: number): number {
+    if (!value) {
+        return defaultValue;
+    }
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 0) {
+        return defaultValue;
+    }
+    if (maxValue !== undefined) {
+        return Math.min(parsed, maxValue);
+    }
+    return parsed;
+}
+
+/**
  * Get IP address for audit logging if enabled (GDPR-compliant).
  * Returns undefined if IP logging is disabled.
  */
@@ -61,41 +111,42 @@ function validateDescription(description: string | undefined): string | null {
  * Middleware to check if user is authenticated and has required permission
  */
 async function requirePermission(
-    request: Request, 
-    env: Env, 
+    request: Request,
+    env: Env,
     permission: string
 ): Promise<{ authorized: boolean; sessionData?: SessionData; error?: Response }> {
     // Check if RBAC is enabled
     if (!getRbacEnabled(env)) {
-        return { 
-            authorized: false, 
-            error: new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 })
+        return {
+            authorized: false,
+            error: createErrorResponse('RBAC is not enabled', 403)
         };
     }
 
     // Get session
     const sessionId = getSessionIdFromCookies(request);
     if (!sessionId) {
-        return { 
-            authorized: false, 
-            error: new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 })
+        return {
+            authorized: false,
+            error: createErrorResponse('Authentication required', 401)
         };
     }
 
-    // Load session data
-    const sessionData = await loadSession(env, sessionId) as SessionData;
-    if (!sessionData) {
-        return { 
-            authorized: false, 
-            error: new Response(JSON.stringify({ error: 'Invalid session' }), { status: 401 })
+    // Load session data with type validation
+    const rawSessionData = await loadSession(env, sessionId);
+    if (!rawSessionData || !isValidSessionData(rawSessionData)) {
+        return {
+            authorized: false,
+            error: createErrorResponse('Invalid session', 401)
         };
     }
+    const sessionData = rawSessionData;
 
     // Check permission
     if (!sessionData.permissions || !hasPermission(sessionData.permissions, permission)) {
-        return { 
-            authorized: false, 
-            error: new Response(JSON.stringify({ error: 'Insufficient permissions' }), { status: 403 })
+        return {
+            authorized: false,
+            error: createErrorResponse('Insufficient permissions', 403)
         };
     }
 
@@ -115,10 +166,10 @@ export async function handleListRoles(request: Request, env: Env): Promise<Respo
             return authResult.error!;
         }
 
-        // Parse pagination parameters
+        // Parse pagination parameters with safe integer parsing
         const url = new URL(request.url);
-        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
-        const offset = parseInt(url.searchParams.get('offset') || '0');
+        const limit = safeParseInt(url.searchParams.get('limit'), 100, 500);
+        const offset = safeParseInt(url.searchParams.get('offset'), 0);
 
         // Query roles with pagination
         const query = `
@@ -220,10 +271,10 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
     } catch (error: unknown) {
         console.error('Error creating role:', error);
 
-        // Handle duplicate role name - sanitize error message to prevent stack trace exposure
+        // Handle duplicate role name - check for error code from roles.ts
         const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('already exists')) {
-            // Return generic error without exposing stack trace or internal details
+        if (errorMessage === 'DUPLICATE_ROLE_NAME') {
+            // Return user-friendly error without exposing internal details
             return new Response(JSON.stringify({ error: 'Role with that name already exists' }), { status: 409 });
         }
 
@@ -244,10 +295,10 @@ export async function handleListPermissions(request: Request, env: Env): Promise
             return authResult.error!;
         }
 
-        // Parse pagination parameters
+        // Parse pagination parameters with safe integer parsing
         const url = new URL(request.url);
-        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
-        const offset = parseInt(url.searchParams.get('offset') || '0');
+        const limit = safeParseInt(url.searchParams.get('limit'), 100, 500);
+        const offset = safeParseInt(url.searchParams.get('offset'), 0);
 
         // Query permissions with pagination
         const query = `
@@ -312,10 +363,11 @@ export async function handleGetUserRoles(request: Request, env: Env): Promise<Re
             return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 });
         }
 
-        const sessionData = await loadSession(env, sessionId) as SessionData;
-        if (!sessionData) {
+        const rawSessionData = await loadSession(env, sessionId);
+        if (!rawSessionData || !isValidSessionData(rawSessionData)) {
             return new Response(JSON.stringify({ error: 'Invalid session' }), { status: 401 });
         }
+        const sessionData = rawSessionData;
 
         // Get current user's ID for comparison
         const currentUserResult = await env.usersDB
@@ -377,13 +429,18 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
             return new Response(JSON.stringify({ error: 'Role ID is required' }), { status: 400 });
         }
 
-        // Batch queries: fetch target user, actor user, and role in parallel
-        const [usersResult, roleResult] = await Promise.all([
-            // Combined query for both target user and actor user
+        // Batch queries: fetch target user, actor user, and role in parallel using separate indexed queries
+        const [targetUserResult, actorUserResult, roleResult] = await Promise.all([
+            // Target user by ID (indexed lookup)
             env.usersDB
-                .prepare('SELECT UserID, Username FROM User WHERE UserID = ? OR Username = ?')
-                .bind(userId, authResult.sessionData!.username)
-                .all<{ UserID: number; Username: string }>(),
+                .prepare('SELECT UserID, Username FROM User WHERE UserID = ?')
+                .bind(userId)
+                .first<{ UserID: number; Username: string }>(),
+            // Actor user by username (indexed lookup)
+            env.usersDB
+                .prepare('SELECT UserID, Username FROM User WHERE Username = ?')
+                .bind(authResult.sessionData!.username)
+                .first<{ UserID: number; Username: string }>(),
             // Role details
             env.usersDB
                 .prepare('SELECT id, name FROM roles WHERE id = ?')
@@ -391,11 +448,7 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
                 .first<{ id: string; name: string }>()
         ]);
 
-        // Extract target user and actor from combined results
-        const targetUser = usersResult.results.find(u => u.UserID === userId);
-        const actorUser = usersResult.results.find(u => u.Username === authResult.sessionData!.username);
-
-        if (!targetUser) {
+        if (!targetUserResult) {
             return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
         }
 
@@ -407,13 +460,13 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
         await assignRole(env, userId, roleId);
 
         // Log the audit event (IP logging is GDPR-configurable)
-        if (actorUser) {
+        if (actorUserResult) {
             await logRoleAssigned(
                 env,
-                actorUser.UserID,
+                actorUserResult.UserID,
                 authResult.sessionData!.username,
-                targetUser.UserID,
-                targetUser.Username,
+                targetUserResult.UserID,
+                targetUserResult.Username,
                 roleResult.id,
                 roleResult.name,
                 getAuditIpAddress(request, env)
@@ -461,13 +514,18 @@ export async function handleRemoveRole(request: Request, env: Env): Promise<Resp
 
         const userId = parseInt(userIdStr);
 
-        // Batch queries: fetch target user, actor user, and role in parallel
-        const [usersResult, roleResult] = await Promise.all([
-            // Combined query for both target user and actor user
+        // Batch queries: fetch target user, actor user, and role in parallel using separate indexed queries
+        const [targetUserResult, actorUserResult, roleResult] = await Promise.all([
+            // Target user by ID (indexed lookup)
             env.usersDB
-                .prepare('SELECT UserID, Username FROM User WHERE UserID = ? OR Username = ?')
-                .bind(userId, authResult.sessionData!.username)
-                .all<{ UserID: number; Username: string }>(),
+                .prepare('SELECT UserID, Username FROM User WHERE UserID = ?')
+                .bind(userId)
+                .first<{ UserID: number; Username: string }>(),
+            // Actor user by username (indexed lookup)
+            env.usersDB
+                .prepare('SELECT UserID, Username FROM User WHERE Username = ?')
+                .bind(authResult.sessionData!.username)
+                .first<{ UserID: number; Username: string }>(),
             // Role details
             env.usersDB
                 .prepare('SELECT id, name FROM roles WHERE id = ?')
@@ -475,21 +533,17 @@ export async function handleRemoveRole(request: Request, env: Env): Promise<Resp
                 .first<{ id: string; name: string }>()
         ]);
 
-        // Extract target user and actor from combined results
-        const targetUser = usersResult.results.find(u => u.UserID === userId);
-        const actorUser = usersResult.results.find(u => u.Username === authResult.sessionData!.username);
-
         // Remove the role
         await removeRole(env, userId, roleId);
 
         // Log the audit event (IP logging is GDPR-configurable)
-        if (actorUser && targetUser && roleResult) {
+        if (actorUserResult && targetUserResult && roleResult) {
             await logRoleRemoved(
                 env,
-                actorUser.UserID,
+                actorUserResult.UserID,
                 authResult.sessionData!.username,
-                targetUser.UserID,
-                targetUser.Username,
+                targetUserResult.UserID,
+                targetUserResult.Username,
                 roleResult.id,
                 roleResult.name,
                 getAuditIpAddress(request, env)
@@ -539,8 +593,8 @@ export async function handleGetAuditLogs(request: Request, env: Env): Promise<Re
         }
 
         const actorId = url.searchParams.get('actorId');
-        if (actorId && !isNaN(parseInt(actorId))) {
-            queryParams.actorId = parseInt(actorId);
+        if (actorId && /^\d+$/.test(actorId)) {
+            queryParams.actorId = parseInt(actorId, 10);
         }
 
         const actorUsername = url.searchParams.get('actorUsername');
@@ -574,14 +628,23 @@ export async function handleGetAuditLogs(request: Request, env: Env): Promise<Re
             }
         }
 
+        // Validate date range: startDate must be before endDate
+        if (queryParams.startDate && queryParams.endDate &&
+            queryParams.startDate > queryParams.endDate) {
+            return new Response(JSON.stringify({ error: 'startDate must be before endDate' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         const limit = url.searchParams.get('limit');
-        if (limit && !isNaN(parseInt(limit))) {
-            queryParams.limit = Math.min(parseInt(limit), 1000); // Cap at 1000
+        if (limit && /^\d+$/.test(limit)) {
+            queryParams.limit = Math.min(parseInt(limit, 10), 1000); // Cap at 1000
         }
 
         const offset = url.searchParams.get('offset');
-        if (offset && !isNaN(parseInt(offset))) {
-            queryParams.offset = parseInt(offset);
+        if (offset && /^\d+$/.test(offset)) {
+            queryParams.offset = parseInt(offset, 10);
         }
 
         // Fetch audit logs

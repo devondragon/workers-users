@@ -13,6 +13,10 @@ import { invalidateCachedPermissions } from './cache';
  */
 export async function assignRole(env: Env, userId: number, roleId: string): Promise<void> {
     try {
+        // Invalidate cache BEFORE DB write to prevent race condition where
+        // a concurrent request reads old data and re-caches it
+        await invalidateCachedPermissions(env, userId);
+
         const query = `
             INSERT OR IGNORE INTO user_roles (user_id, role_id, assigned_at)
             VALUES (?, ?, datetime('now'))
@@ -26,9 +30,6 @@ export async function assignRole(env: Env, userId: number, roleId: string): Prom
         if (!result.success) {
             throw new Error('Failed to assign role to user');
         }
-
-        // Invalidate the user's permission cache
-        await invalidateCachedPermissions(env, userId);
     } catch (error) {
         console.error('Error assigning role:', error);
         throw new Error('Failed to assign role to user');
@@ -46,6 +47,10 @@ export async function assignRole(env: Env, userId: number, roleId: string): Prom
  */
 export async function removeRole(env: Env, userId: number, roleId: string): Promise<void> {
     try {
+        // Invalidate cache BEFORE DB write to prevent race condition where
+        // a concurrent request reads old data and re-caches it
+        await invalidateCachedPermissions(env, userId);
+
         const query = `
             DELETE FROM user_roles
             WHERE user_id = ? AND role_id = ?
@@ -59,9 +64,6 @@ export async function removeRole(env: Env, userId: number, roleId: string): Prom
         if (!result.success) {
             throw new Error('Failed to remove role from user');
         }
-
-        // Invalidate the user's permission cache
-        await invalidateCachedPermissions(env, userId);
     } catch (error) {
         console.error('Error removing role:', error);
         throw new Error('Failed to remove role from user');
@@ -108,8 +110,9 @@ export async function createRole(env: Env, name: string, description?: string): 
         // Handle duplicate name errors gracefully
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('UNIQUE constraint')) {
+            // Use generic error code to avoid leaking role name in error messages
             console.error('Role name already exists:', name);
-            throw new Error(`Role with name '${name}' already exists`);
+            throw new Error('DUPLICATE_ROLE_NAME');
         }
         console.error('Error creating role:', error);
         throw new Error('Failed to create role');

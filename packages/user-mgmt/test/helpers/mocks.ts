@@ -19,6 +19,7 @@ export function createMockEnv(overrides: Partial<Env> = {}): Env {
         EMAIL_DKIM_PRIVATE_KEY: "test-key",
         RBAC_ENABLED: "true",
         SUPER_ADMIN_EMAIL: "admin@test.com",
+        SUPER_ADMIN_EMAIL_CONFIRMED: "true", // Enable bootstrap in tests
         ...overrides,
     };
 }

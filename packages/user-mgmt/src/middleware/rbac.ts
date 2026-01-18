@@ -4,9 +4,33 @@
  * allowing access to protected routes.
  */
 
-import { Env, getRbacEnabled } from '../env';
-import { hasPermission } from '../rbac';
+import { Env, getRbacEnabled, getIpLoggingEnabled } from '../env';
+import { hasPermission, logAuthorizationDenied, getIpAddressFromRequest } from '../rbac';
 import { RequestWithSession } from './session';
+
+/**
+ * Helper function to log permission denial events.
+ * Consolidates the repeated logging pattern across middleware functions.
+ * This is non-blocking to avoid delaying the response.
+ *
+ * @param env - Environment configuration
+ * @param request - The request with session data
+ * @param permission - The permission(s) that were denied (can be single or joined with OR/AND)
+ */
+function logPermissionDenialEvent(
+    env: Env,
+    request: RequestWithSession,
+    permission: string
+): void {
+    const ipAddress = getIpLoggingEnabled(env) ? getIpAddressFromRequest(request) : null;
+    logAuthorizationDenied(
+        env,
+        null, // userId not easily available without DB lookup
+        request.sessionData!.username,
+        permission,
+        ipAddress ?? undefined
+    ).catch(err => console.error('Failed to log authorization denial:', err));
+}
 
 /**
  * Middleware that requires the user to have a specific permission.
@@ -47,6 +71,10 @@ export function requirePermission(permission: string) {
         if (!hasPermission(userPermissions, permission)) {
             // Log the required permission server-side for debugging
             console.log(`Permission denied: user lacks '${permission}' permission`);
+
+            // Log failed authorization attempt for security monitoring
+            logPermissionDenialEvent(env, request, permission);
+
             return new Response(
                 JSON.stringify({
                     error: 'Insufficient permissions'
@@ -106,6 +134,10 @@ export function requireAnyPermission(permissions: string[]) {
         if (!hasAnyRequiredPermission) {
             // Log the required permissions server-side for debugging
             console.log(`Permission denied: user lacks any of [${permissions.join(', ')}] permissions`);
+
+            // Log failed authorization attempt for security monitoring
+            logPermissionDenialEvent(env, request, permissions.join(' OR '));
+
             return new Response(
                 JSON.stringify({
                     error: 'Insufficient permissions'
@@ -165,6 +197,10 @@ export function requireAllPermissions(permissions: string[]) {
         if (missingPermissions.length > 0) {
             // Log the missing permissions server-side for debugging
             console.log(`Permission denied: user missing [${missingPermissions.join(', ')}] permissions`);
+
+            // Log failed authorization attempt for security monitoring
+            logPermissionDenialEvent(env, request, permissions.join(' AND '));
+
             return new Response(
                 JSON.stringify({
                     error: 'Insufficient permissions'

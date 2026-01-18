@@ -52,7 +52,8 @@ export type AuditAction =
     | 'BOOTSTRAP_SUPER_ADMIN'
     | 'LOGIN_SUCCESS'
     | 'LOGIN_FAILURE'
-    | 'LOGOUT';
+    | 'LOGOUT'
+    | 'AUTHORIZATION_DENIED';
 
 /**
  * Target types for audit log entries

@@ -13,7 +13,7 @@
  * 3. Using a separate secure channel to confirm admin identity
  */
 
-import { Env, getSuperAdminEmail, getUsersDB } from '../env';
+import { Env, getSuperAdminEmail, getSuperAdminEmailConfirmed, getUsersDB } from '../env';
 import { assignRole } from './roles';
 import { logBootstrapSuperAdmin } from './audit';
 import { ROLES } from '../constants/rbac';
@@ -65,7 +65,18 @@ export async function bootstrapSuperAdmin(env: Env): Promise<void> {
     const superAdminEmail = getSuperAdminEmail(env);
     
     if (!superAdminEmail) {
-        console.log('RBAC Bootstrap: SUPER_ADMIN_EMAIL not configured, skipping bootstrap');
+        console.log('RBAC Bootstrap: RBAC_ADMIN_EMAIL not configured, skipping bootstrap');
+        return;
+    }
+
+    // Security check: Require explicit confirmation that the admin email has been verified
+    // This prevents attackers from registering with a known admin email before the real admin
+    if (!getSuperAdminEmailConfirmed(env)) {
+        console.warn(
+            'RBAC Bootstrap: RBAC_ADMIN_EMAIL_CONFIRMED is not set to "true". ' +
+            'For security, super admin role will NOT be assigned automatically. ' +
+            'Set RBAC_ADMIN_EMAIL_CONFIRMED=true after verifying the admin email ownership.'
+        );
         return;
     }
     

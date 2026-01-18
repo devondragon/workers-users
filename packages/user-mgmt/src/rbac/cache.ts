@@ -6,7 +6,7 @@
  * database queries for frequently accessed permission data.
  *
  * Cache Strategy:
- * - TTL: 5 minutes (300 seconds)
+ * - TTL: 1 minute (60 seconds) for tighter security
  * - Invalidation: Immediate delete on role assignment/removal
  * - Graceful degradation: Falls back to D1 query on cache failure
  */
