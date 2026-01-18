@@ -23,10 +23,13 @@ export async function getUserPermissions(env: Env, userId: number): Promise<stri
         // Cache miss - query database
         const permissions = await getUserPermissionsFromDB(env, userId);
 
-        // Store in cache for next time (don't await - fire and forget)
-        setCachedPermissions(env, userId, permissions).catch((error) => {
-            console.error('Error caching permissions:', error);
-        });
+        // Store in cache for next time
+        try {
+            await setCachedPermissions(env, userId, permissions);
+        } catch (error) {
+            // Non-fatal: log but don't fail the request
+            console.error('Failed to cache permissions:', error);
+        }
 
         return permissions;
     } catch (error) {

@@ -30,11 +30,10 @@ export function requirePermission(permission: string) {
         // Check if session data exists
         if (!request.sessionData) {
             return new Response(
-                JSON.stringify({ 
-                    error: 'Authentication required',
-                    required: permission
+                JSON.stringify({
+                    error: 'Authentication required'
                 }),
-                { 
+                {
                     status: 401,
                     headers: { 'Content-Type': 'application/json' }
                 }
@@ -46,13 +45,13 @@ export function requirePermission(permission: string) {
         
         // Check if user has the required permission
         if (!hasPermission(userPermissions, permission)) {
+            // Log the required permission server-side for debugging
+            console.log(`Permission denied: user lacks '${permission}' permission`);
             return new Response(
-                JSON.stringify({ 
-                    error: 'Insufficient permissions',
-                    required: permission,
-                    message: `You need the '${permission}' permission to access this resource`
+                JSON.stringify({
+                    error: 'Insufficient permissions'
                 }),
-                { 
+                {
                     status: 403,
                     headers: { 'Content-Type': 'application/json' }
                 }
@@ -86,12 +85,10 @@ export function requireAnyPermission(permissions: string[]) {
         // Check if session data exists
         if (!request.sessionData) {
             return new Response(
-                JSON.stringify({ 
-                    error: 'Authentication required',
-                    required: permissions,
-                    requiresAny: true
+                JSON.stringify({
+                    error: 'Authentication required'
                 }),
-                { 
+                {
                     status: 401,
                     headers: { 'Content-Type': 'application/json' }
                 }
@@ -107,14 +104,13 @@ export function requireAnyPermission(permissions: string[]) {
         );
         
         if (!hasAnyRequiredPermission) {
+            // Log the required permissions server-side for debugging
+            console.log(`Permission denied: user lacks any of [${permissions.join(', ')}] permissions`);
             return new Response(
-                JSON.stringify({ 
-                    error: 'Insufficient permissions',
-                    required: permissions,
-                    requiresAny: true,
-                    message: `You need at least one of these permissions: ${permissions.join(', ')}`
+                JSON.stringify({
+                    error: 'Insufficient permissions'
                 }),
-                { 
+                {
                     status: 403,
                     headers: { 'Content-Type': 'application/json' }
                 }
@@ -148,12 +144,10 @@ export function requireAllPermissions(permissions: string[]) {
         // Check if session data exists
         if (!request.sessionData) {
             return new Response(
-                JSON.stringify({ 
-                    error: 'Authentication required',
-                    required: permissions,
-                    requiresAll: true
+                JSON.stringify({
+                    error: 'Authentication required'
                 }),
-                { 
+                {
                     status: 401,
                     headers: { 'Content-Type': 'application/json' }
                 }
@@ -169,15 +163,13 @@ export function requireAllPermissions(permissions: string[]) {
         );
         
         if (missingPermissions.length > 0) {
+            // Log the missing permissions server-side for debugging
+            console.log(`Permission denied: user missing [${missingPermissions.join(', ')}] permissions`);
             return new Response(
-                JSON.stringify({ 
-                    error: 'Insufficient permissions',
-                    required: permissions,
-                    missing: missingPermissions,
-                    requiresAll: true,
-                    message: `You need all of these permissions: ${permissions.join(', ')}. Missing: ${missingPermissions.join(', ')}`
+                JSON.stringify({
+                    error: 'Insufficient permissions'
                 }),
-                { 
+                {
                     status: 403,
                     headers: { 'Content-Type': 'application/json' }
                 }

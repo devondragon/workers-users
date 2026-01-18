@@ -13,11 +13,8 @@
 
 import { Env } from '../env';
 
-/** Cache TTL in seconds (5 minutes) */
-const CACHE_TTL_SECONDS = 300;
-
-/** Base URL for the session service */
-const SESSION_SERVICE_URL = 'https://session-state.d1.compact.workers.dev';
+/** Cache TTL in seconds (1 minute for tighter security) */
+const CACHE_TTL_SECONDS = 60;
 
 /**
  * Generates the cache key for a user's permissions.
@@ -42,7 +39,8 @@ export async function getCachedPermissions(
 ): Promise<string[] | null> {
     try {
         const cacheKey = getPermissionsCacheKey(userId);
-        const cacheUrl = `${SESSION_SERVICE_URL}/cache/${encodeURIComponent(cacheKey)}`;
+        // Use relative URL with service binding - the binding handles routing
+        const cacheUrl = `https://session-service/cache/${encodeURIComponent(cacheKey)}`;
 
         const response = await env.sessionService.fetch(
             new Request(cacheUrl, { method: 'GET' })
@@ -84,7 +82,8 @@ export async function setCachedPermissions(
 ): Promise<void> {
     try {
         const cacheKey = getPermissionsCacheKey(userId);
-        const cacheUrl = `${SESSION_SERVICE_URL}/cache/${encodeURIComponent(cacheKey)}`;
+        // Use relative URL with service binding - the binding handles routing
+        const cacheUrl = `https://session-service/cache/${encodeURIComponent(cacheKey)}`;
 
         const response = await env.sessionService.fetch(
             new Request(cacheUrl, {
@@ -118,7 +117,8 @@ export async function invalidateCachedPermissions(
 ): Promise<void> {
     try {
         const cacheKey = getPermissionsCacheKey(userId);
-        const cacheUrl = `${SESSION_SERVICE_URL}/cache/${encodeURIComponent(cacheKey)}`;
+        // Use relative URL with service binding - the binding handles routing
+        const cacheUrl = `https://session-service/cache/${encodeURIComponent(cacheKey)}`;
 
         const response = await env.sessionService.fetch(
             new Request(cacheUrl, { method: 'DELETE' })

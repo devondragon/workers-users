@@ -87,7 +87,7 @@ describe("RBAC Middleware", () => {
             expect(result?.status).toBe(403);
             const body = (await result?.json()) as ErrorResponse;
             expect(body.error).toBe("Insufficient permissions");
-            expect(body.required).toBe("users:write");
+            // Permission names are no longer exposed in error responses for security
         });
 
         it("should allow access when user has the required permission", async () => {
@@ -166,7 +166,8 @@ describe("RBAC Middleware", () => {
             expect(result).toBeInstanceOf(Response);
             expect(result?.status).toBe(403);
             const body = (await result?.json()) as ErrorResponse;
-            expect(body.requiresAny).toBe(true);
+            expect(body.error).toBe("Insufficient permissions");
+            // Permission details are no longer exposed in error responses for security
         });
 
         it("should allow access when user has at least one required permission", async () => {
@@ -251,9 +252,8 @@ describe("RBAC Middleware", () => {
             expect(result).toBeInstanceOf(Response);
             expect(result?.status).toBe(403);
             const body = (await result?.json()) as ErrorResponse;
-            expect(body.requiresAll).toBe(true);
-            expect(body.missing).toContain("users:write");
-            expect(body.missing).not.toContain("users:read");
+            expect(body.error).toBe("Insufficient permissions");
+            // Permission details are no longer exposed in error responses for security
         });
 
         it("should allow access when user has all required permissions", async () => {
