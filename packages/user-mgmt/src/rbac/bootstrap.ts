@@ -1,12 +1,13 @@
 /**
  * Bootstrap functionality for RBAC system
- * 
+ *
  * This module provides functions to bootstrap the RBAC system,
  * particularly for setting up the initial super admin user.
  */
 
 import { Env, getSuperAdminEmail, getUsersDB } from '../env';
 import { assignRole } from './roles';
+import { logBootstrapSuperAdmin } from './audit';
 
 /**
  * Gets the super admin role ID
@@ -61,37 +62,40 @@ export async function bootstrapSuperAdmin(env: Env): Promise<void> {
     
     try {
         const db = getUsersDB(env);
-        
+
         // Find user by email
         const user = await db.prepare(
-            'SELECT UserID FROM users WHERE Username = ?'
+            'SELECT UserID FROM User WHERE Username = ?'
         ).bind(superAdminEmail).first();
-        
+
         if (!user) {
             console.log(`RBAC Bootstrap: User with email ${superAdminEmail} not found`);
             return;
         }
-        
-        const userId = user.UserID as string;
-        
+
+        const userId = user.UserID as number;
+
         // Check if user already has super admin role
-        const hasSuperAdmin = await userHasSuperAdminRole(env, userId);
+        const hasSuperAdmin = await userHasSuperAdminRole(env, userId.toString());
         if (hasSuperAdmin) {
             console.log(`RBAC Bootstrap: User ${superAdminEmail} already has SUPER_ADMIN role`);
             return;
         }
-        
+
         // Get super admin role ID
         const superAdminRoleId = await getSuperAdminRoleId(env);
         if (!superAdminRoleId) {
             console.error('RBAC Bootstrap: SUPER_ADMIN role not found in database');
             return;
         }
-        
+
         // Assign super admin role
         await assignRole(env, userId, superAdminRoleId);
         console.log(`RBAC Bootstrap: Successfully assigned SUPER_ADMIN role to ${superAdminEmail}`);
-        
+
+        // Log the bootstrap event
+        await logBootstrapSuperAdmin(env, userId, superAdminEmail);
+
     } catch (error) {
         console.error('RBAC Bootstrap: Error during bootstrap:', error);
         // Don't throw - we don't want to prevent the worker from starting

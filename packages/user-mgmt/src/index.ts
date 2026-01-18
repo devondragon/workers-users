@@ -46,6 +46,7 @@ import {
 	handleGetUserRoles,
 	handleAssignRole,
 	handleRemoveRole,
+	handleGetAuditLogs,
 } from './handlers';
 
 // Middleware for CORS preflight and response handling
@@ -124,6 +125,12 @@ router
 			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
 		}
 		return handleRemoveRole(request, env);
+	})
+	.get('*/rbac/audit-logs', (request, env, ctx) => {
+		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
+			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
+		}
+		return handleGetAuditLogs(request, env);
 	})
 	.all('*', () => new Response('Not Found', { status: 404 }));
 

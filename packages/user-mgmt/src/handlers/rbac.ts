@@ -1,14 +1,20 @@
 import { Env, getRbacEnabled } from '../env';
 import { getSessionIdFromCookies } from '../utils';
 import { loadSession } from '../session';
-import { 
-    hasPermission, 
-    getUserRoles, 
-    assignRole, 
-    removeRole, 
-    createRole 
+import {
+    hasPermission,
+    getUserRoles,
+    assignRole,
+    removeRole,
+    createRole,
+    logRoleAssigned,
+    logRoleRemoved,
+    logRoleCreated,
+    getAuditLogs,
+    getIpAddressFromRequest
 } from '../rbac';
 import { Role, Permission, SessionData } from '../types/rbac';
+import { AuditLogQueryParams } from '../rbac/audit';
 
 /**
  * Middleware to check if user is authenticated and has required permission
@@ -132,18 +138,38 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
         // Create the role
         const role = await createRole(env, name.trim(), description);
 
+        // Get actor information for audit log
+        const actorResult = await env.usersDB
+            .prepare('SELECT UserID FROM User WHERE Username = ?')
+            .bind(authResult.sessionData!.username)
+            .first<{ UserID: number }>();
+
+        // Log the audit event
+        if (actorResult) {
+            await logRoleCreated(
+                env,
+                actorResult.UserID,
+                authResult.sessionData!.username,
+                role.id,
+                role.name,
+                role.description,
+                getIpAddressFromRequest(request) ?? undefined
+            );
+        }
+
         return new Response(JSON.stringify({ role }), {
             status: 201,
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error creating role:', error);
-        
+
         // Handle duplicate role name
-        if (error.message && error.message.includes('already exists')) {
-            return new Response(JSON.stringify({ error: error.message }), { status: 409 });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('already exists')) {
+            return new Response(JSON.stringify({ error: errorMessage }), { status: 409 });
         }
-        
+
         return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
     }
 }
@@ -233,7 +259,7 @@ export async function handleGetUserRoles(request: Request, env: Env): Promise<Re
 
         // Get current user's ID for comparison
         const currentUserResult = await env.usersDB
-            .prepare('SELECT UserID FROM Users WHERE Username = ?')
+            .prepare('SELECT UserID FROM User WHERE Username = ?')
             .bind(sessionData.username)
             .first<{ UserID: number }>();
         
@@ -293,7 +319,7 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
 
         // Verify user exists
         const userResult = await env.usersDB
-            .prepare('SELECT UserID FROM Users WHERE UserID = ?')
+            .prepare('SELECT UserID FROM User WHERE UserID = ?')
             .bind(userId)
             .first();
         
@@ -301,18 +327,44 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
             return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
         }
 
-        // Verify role exists
+        // Verify role exists and get role details
         const roleResult = await env.usersDB
-            .prepare('SELECT id FROM roles WHERE id = ?')
+            .prepare('SELECT id, name FROM roles WHERE id = ?')
             .bind(roleId)
-            .first();
-        
+            .first<{ id: string; name: string }>();
+
         if (!roleResult) {
             return new Response(JSON.stringify({ error: 'Role not found' }), { status: 404 });
         }
 
+        // Get target user details
+        const targetUserResult = await env.usersDB
+            .prepare('SELECT UserID, Username FROM User WHERE UserID = ?')
+            .bind(userId)
+            .first<{ UserID: number; Username: string }>();
+
+        // Get actor information for audit log
+        const actorResult = await env.usersDB
+            .prepare('SELECT UserID FROM User WHERE Username = ?')
+            .bind(authResult.sessionData!.username)
+            .first<{ UserID: number }>();
+
         // Assign the role
         await assignRole(env, userId, roleId);
+
+        // Log the audit event
+        if (actorResult && targetUserResult) {
+            await logRoleAssigned(
+                env,
+                actorResult.UserID,
+                authResult.sessionData!.username,
+                targetUserResult.UserID,
+                targetUserResult.Username,
+                roleResult.id,
+                roleResult.name,
+                getIpAddressFromRequest(request) ?? undefined
+            );
+        }
 
         return new Response(JSON.stringify({ message: 'Role assigned successfully' }), {
             status: 200,
@@ -352,11 +404,43 @@ export async function handleRemoveRole(request: Request, env: Env): Promise<Resp
         if (!roleId) {
             return new Response(JSON.stringify({ error: 'Invalid role ID' }), { status: 400 });
         }
-        
+
         const userId = parseInt(userIdStr);
+
+        // Get role details for audit log
+        const roleResult = await env.usersDB
+            .prepare('SELECT id, name FROM roles WHERE id = ?')
+            .bind(roleId)
+            .first<{ id: string; name: string }>();
+
+        // Get target user details for audit log
+        const targetUserResult = await env.usersDB
+            .prepare('SELECT UserID, Username FROM User WHERE UserID = ?')
+            .bind(userId)
+            .first<{ UserID: number; Username: string }>();
+
+        // Get actor information for audit log
+        const actorResult = await env.usersDB
+            .prepare('SELECT UserID FROM User WHERE Username = ?')
+            .bind(authResult.sessionData!.username)
+            .first<{ UserID: number }>();
 
         // Remove the role
         await removeRole(env, userId, roleId);
+
+        // Log the audit event
+        if (actorResult && targetUserResult && roleResult) {
+            await logRoleRemoved(
+                env,
+                actorResult.UserID,
+                authResult.sessionData!.username,
+                targetUserResult.UserID,
+                targetUserResult.Username,
+                roleResult.id,
+                roleResult.name,
+                getIpAddressFromRequest(request) ?? undefined
+            );
+        }
 
         return new Response(JSON.stringify({ message: 'Role removed successfully' }), {
             status: 200,
@@ -364,6 +448,96 @@ export async function handleRemoveRole(request: Request, env: Env): Promise<Resp
         });
     } catch (error) {
         console.error('Error removing role:', error);
+        return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
+    }
+}
+
+/**
+ * GET /rbac/audit-logs - Query audit logs
+ * Requires admin:all permission
+ *
+ * Query parameters:
+ * - action: Filter by action type
+ * - actorId: Filter by actor user ID
+ * - actorUsername: Filter by actor username
+ * - targetType: Filter by target type (USER, ROLE, PERMISSION, SYSTEM)
+ * - targetId: Filter by target ID
+ * - startDate: Filter by start date (ISO 8601 format)
+ * - endDate: Filter by end date (ISO 8601 format)
+ * - limit: Maximum number of results (default: 100)
+ * - offset: Pagination offset (default: 0)
+ */
+export async function handleGetAuditLogs(request: Request, env: Env): Promise<Response> {
+    try {
+        // Check permission - requires admin:all
+        const authResult = await requirePermission(request, env, 'admin:all');
+        if (!authResult.authorized) {
+            return authResult.error!;
+        }
+
+        // Parse query parameters
+        const url = new URL(request.url);
+        const queryParams: AuditLogQueryParams = {};
+
+        const action = url.searchParams.get('action');
+        if (action) {
+            queryParams.action = action as AuditLogQueryParams['action'];
+        }
+
+        const actorId = url.searchParams.get('actorId');
+        if (actorId && !isNaN(parseInt(actorId))) {
+            queryParams.actorId = parseInt(actorId);
+        }
+
+        const actorUsername = url.searchParams.get('actorUsername');
+        if (actorUsername) {
+            queryParams.actorUsername = actorUsername;
+        }
+
+        const targetType = url.searchParams.get('targetType');
+        if (targetType) {
+            queryParams.targetType = targetType as AuditLogQueryParams['targetType'];
+        }
+
+        const targetId = url.searchParams.get('targetId');
+        if (targetId) {
+            queryParams.targetId = targetId;
+        }
+
+        const startDate = url.searchParams.get('startDate');
+        if (startDate) {
+            const date = new Date(startDate);
+            if (!isNaN(date.getTime())) {
+                queryParams.startDate = date;
+            }
+        }
+
+        const endDate = url.searchParams.get('endDate');
+        if (endDate) {
+            const date = new Date(endDate);
+            if (!isNaN(date.getTime())) {
+                queryParams.endDate = date;
+            }
+        }
+
+        const limit = url.searchParams.get('limit');
+        if (limit && !isNaN(parseInt(limit))) {
+            queryParams.limit = Math.min(parseInt(limit), 1000); // Cap at 1000
+        }
+
+        const offset = url.searchParams.get('offset');
+        if (offset && !isNaN(parseInt(offset))) {
+            queryParams.offset = parseInt(offset);
+        }
+
+        // Fetch audit logs
+        const logs = await getAuditLogs(env, queryParams);
+
+        return new Response(JSON.stringify({ logs }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error fetching audit logs:', error);
         return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
     }
 }

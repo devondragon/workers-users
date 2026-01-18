@@ -256,5 +256,6 @@ export {
     handleListPermissions,
     handleGetUserRoles,
     handleAssignRole,
-    handleRemoveRole
+    handleRemoveRole,
+    handleGetAuditLogs
 } from './handlers/rbac';
