@@ -13,6 +13,8 @@ export interface Env {
     EMAIL_DKIM_PRIVATE_KEY: string;
     RBAC_ENABLED: string;
     SUPER_ADMIN_EMAIL?: string;
+    /** Enable IP address logging in audit logs (GDPR consideration - disabled by default) */
+    LOG_IP_ADDRESS?: string;
 }
 
 export function getUsersDB(env: Env): D1Database {
@@ -57,4 +59,12 @@ export function getRbacEnabled(env: Env): boolean {
 
 export function getSuperAdminEmail(env: Env): string | undefined {
     return env.SUPER_ADMIN_EMAIL;
+}
+
+/**
+ * Check if IP address logging is enabled (GDPR consideration).
+ * Defaults to false for privacy compliance.
+ */
+export function getIpLoggingEnabled(env: Env): boolean {
+    return env.LOG_IP_ADDRESS === 'true';
 }

@@ -24,6 +24,8 @@ TOKEN_VALID_MINUTES = 60
 # RBAC Configuration
 RBAC_ENABLED = "false"
 SUPER_ADMIN_EMAIL = ""
+# Enable IP address logging in audit logs (GDPR consideration - disabled by default)
+LOG_IP_ADDRESS = "false"
 
 [dev]
 port = 51512
