@@ -88,50 +88,25 @@ router
 	.post('*/forgot-password-new-password', (request, env, ctx) => handleForgotPasswordNewPassword(request, env))
 	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env));
 
-// Add RBAC routes if RBAC is enabled
+// Middleware to check if RBAC is enabled
+function requireRbacEnabled(request: IRequest, env: Env): Response | void {
+	if (!getRbacEnabled(env)) {
+		return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), {
+			status: 403,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+}
+
+// RBAC routes - all require RBAC to be enabled
 router
-	.get('*/rbac/roles', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleListRoles(request, env);
-	})
-	.post('*/rbac/roles', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleCreateRole(request, env);
-	})
-	.get('*/rbac/permissions', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleListPermissions(request, env);
-	})
-	.get('*/rbac/users/:userId/roles', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleGetUserRoles(request, env);
-	})
-	.post('*/rbac/users/:userId/roles', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleAssignRole(request, env);
-	})
-	.delete('*/rbac/users/:userId/roles/:roleId', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleRemoveRole(request, env);
-	})
-	.get('*/rbac/audit-logs', (request, env, ctx) => {
-		if (!env.RBAC_ENABLED || env.RBAC_ENABLED !== 'true') {
-			return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), { status: 403 });
-		}
-		return handleGetAuditLogs(request, env);
-	})
+	.get('*/rbac/roles', requireRbacEnabled, (request, env) => handleListRoles(request, env))
+	.post('*/rbac/roles', requireRbacEnabled, (request, env) => handleCreateRole(request, env))
+	.get('*/rbac/permissions', requireRbacEnabled, (request, env) => handleListPermissions(request, env))
+	.get('*/rbac/users/:userId/roles', requireRbacEnabled, (request, env) => handleGetUserRoles(request, env))
+	.post('*/rbac/users/:userId/roles', requireRbacEnabled, (request, env) => handleAssignRole(request, env))
+	.delete('*/rbac/users/:userId/roles/:roleId', requireRbacEnabled, (request, env) => handleRemoveRole(request, env))
+	.get('*/rbac/audit-logs', requireRbacEnabled, (request, env) => handleGetAuditLogs(request, env))
 	.all('*', () => new Response('Not Found', { status: 404 }));
 
 export default { ...router }; // Export the router

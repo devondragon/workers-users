@@ -3,11 +3,20 @@
  *
  * This module provides functions to bootstrap the RBAC system,
  * particularly for setting up the initial super admin user.
+ *
+ * SECURITY NOTE: The current User table does not have an email verification
+ * column. This means the bootstrap process cannot verify that the user has
+ * confirmed ownership of their email address. For production deployments,
+ * consider:
+ * 1. Adding email verification to the registration flow
+ * 2. Manually verifying the super admin before enabling RBAC
+ * 3. Using a separate secure channel to confirm admin identity
  */
 
 import { Env, getSuperAdminEmail, getUsersDB } from '../env';
 import { assignRole } from './roles';
 import { logBootstrapSuperAdmin } from './audit';
+import { ROLES } from '../constants/rbac';
 
 /**
  * Gets the super admin role ID
@@ -18,8 +27,8 @@ async function getSuperAdminRoleId(env: Env): Promise<string | null> {
     const db = getUsersDB(env);
     const result = await db.prepare(
         'SELECT id FROM roles WHERE name = ?'
-    ).bind('SUPER_ADMIN').first();
-    
+    ).bind(ROLES.SUPER_ADMIN).first();
+
     return result ? result.id as string : null;
 }
 
@@ -32,12 +41,12 @@ async function getSuperAdminRoleId(env: Env): Promise<string | null> {
 async function userHasSuperAdminRole(env: Env, userId: string): Promise<boolean> {
     const db = getUsersDB(env);
     const result = await db.prepare(
-        `SELECT ur.user_id 
+        `SELECT ur.user_id
          FROM user_roles ur
          JOIN roles r ON ur.role_id = r.id
          WHERE ur.user_id = ? AND r.name = ?`
-    ).bind(userId, 'SUPER_ADMIN').first();
-    
+    ).bind(userId, ROLES.SUPER_ADMIN).first();
+
     return result !== null;
 }
 
