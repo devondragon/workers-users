@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
     requirePermission,
     requireAnyPermission,
@@ -14,6 +14,16 @@ import {
     createMemberSessionData,
 } from "../../helpers/mocks";
 import { RequestWithSession } from "../../../src/middleware/session";
+
+// Mock the audit logging to prevent D1 writes from escaping test isolation
+vi.mock("../../../src/rbac", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../../src/rbac")>();
+    return {
+        ...actual,
+        // Mock logAuthorizationDenied to be a no-op that resolves immediately
+        logAuthorizationDenied: vi.fn().mockResolvedValue(undefined),
+    };
+});
 
 // Type definitions for error responses
 interface ErrorResponse {
