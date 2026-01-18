@@ -1,5 +1,6 @@
 import { Env } from '../env';
 import { Role } from '../types/rbac';
+import { invalidateCachedPermissions } from './cache';
 
 /**
  * Assigns a role to a user. Uses INSERT OR IGNORE to prevent duplicate assignments.
@@ -16,15 +17,18 @@ export async function assignRole(env: Env, userId: number, roleId: string): Prom
             INSERT OR IGNORE INTO user_roles (user_id, role_id, assigned_at)
             VALUES (?, ?, datetime('now'))
         `;
-        
+
         const result = await env.usersDB
             .prepare(query)
             .bind(userId, roleId)
             .run();
-        
+
         if (!result.success) {
             throw new Error('Failed to assign role to user');
         }
+
+        // Invalidate the user's permission cache
+        await invalidateCachedPermissions(env, userId);
     } catch (error) {
         console.error('Error assigning role:', error);
         throw new Error('Failed to assign role to user');
@@ -46,15 +50,18 @@ export async function removeRole(env: Env, userId: number, roleId: string): Prom
             DELETE FROM user_roles
             WHERE user_id = ? AND role_id = ?
         `;
-        
+
         const result = await env.usersDB
             .prepare(query)
             .bind(userId, roleId)
             .run();
-        
+
         if (!result.success) {
             throw new Error('Failed to remove role from user');
         }
+
+        // Invalidate the user's permission cache
+        await invalidateCachedPermissions(env, userId);
     } catch (error) {
         console.error('Error removing role:', error);
         throw new Error('Failed to remove role from user');
@@ -97,9 +104,10 @@ export async function createRole(env: Env, name: string, description?: string): 
             description: roleDescription,
             createdAt: new Date()
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Handle duplicate name errors gracefully
-        if (error.message && error.message.includes('UNIQUE constraint')) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('UNIQUE constraint')) {
             console.error('Role name already exists:', name);
             throw new Error(`Role with name '${name}' already exists`);
         }

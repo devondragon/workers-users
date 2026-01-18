@@ -1,10 +1,12 @@
 import { Env } from '../env';
-import { Role, Permission } from '../types/rbac';
+import { Role } from '../types/rbac';
+import { getCachedPermissions, setCachedPermissions } from './cache';
 
 /**
  * Retrieves all permissions for a user based on their assigned roles.
+ * Uses cache-first strategy for better performance.
  * If the user has the 'admin:all' permission, returns only that permission for efficiency.
- * 
+ *
  * @param env - The environment configuration containing the database connection
  * @param userId - The ID of the user whose permissions to retrieve
  * @returns A promise that resolves to an array of permission names
@@ -12,36 +14,61 @@ import { Role, Permission } from '../types/rbac';
  */
 export async function getUserPermissions(env: Env, userId: number): Promise<string[]> {
     try {
-        // Query to get all permissions for a user through their roles
-        const query = `
-            SELECT DISTINCT p.name
-            FROM user_roles ur
-            INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
-            INNER JOIN permissions p ON rp.permission_id = p.id
-            WHERE ur.user_id = ?
-        `;
-        
-        const result = await env.usersDB
-            .prepare(query)
-            .bind(userId)
-            .all<{ name: string }>();
-        
-        if (!result.success) {
-            throw new Error('Failed to retrieve user permissions');
+        // Try to get from cache first
+        const cachedPermissions = await getCachedPermissions(env, userId);
+        if (cachedPermissions !== null) {
+            return cachedPermissions;
         }
-        
-        const permissions = result.results.map(row => row.name);
-        
-        // If user has admin:all permission, return only that for efficiency
-        if (permissions.includes('admin:all')) {
-            return ['admin:all'];
-        }
-        
+
+        // Cache miss - query database
+        const permissions = await getUserPermissionsFromDB(env, userId);
+
+        // Store in cache for next time (don't await - fire and forget)
+        setCachedPermissions(env, userId, permissions).catch((error) => {
+            console.error('Error caching permissions:', error);
+        });
+
         return permissions;
     } catch (error) {
         console.error('Error getting user permissions:', error);
         throw new Error('Failed to retrieve user permissions');
     }
+}
+
+/**
+ * Retrieves all permissions for a user directly from the database.
+ * This is the internal function that bypasses the cache.
+ *
+ * @param env - The environment configuration containing the database connection
+ * @param userId - The ID of the user whose permissions to retrieve
+ * @returns A promise that resolves to an array of permission names
+ */
+export async function getUserPermissionsFromDB(env: Env, userId: number): Promise<string[]> {
+    const query = `
+        SELECT DISTINCT p.name
+        FROM user_roles ur
+        INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
+        INNER JOIN permissions p ON rp.permission_id = p.id
+        WHERE ur.user_id = ?
+    `;
+
+    const result = await env.usersDB
+        .prepare(query)
+        .bind(userId)
+        .all<{ name: string }>();
+
+    if (!result.success) {
+        throw new Error('Failed to retrieve user permissions');
+    }
+
+    const permissions = result.results.map(row => row.name);
+
+    // If user has admin:all permission, return only that for efficiency
+    if (permissions.includes('admin:all')) {
+        return ['admin:all'];
+    }
+
+    return permissions;
 }
 
 /**
