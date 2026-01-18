@@ -5,7 +5,7 @@
  * with itty-router in the user-mgmt worker.
  */
 
-import { AutoRouter, IRequest } from 'itty-router';
+import { AutoRouter } from 'itty-router';
 import { Env } from '../env';
 import { 
     withSession, 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { env } from "cloudflare:test";
 import {
     assignRole,
@@ -8,7 +8,7 @@ import {
     assignDefaultRole,
 } from "../../../src/rbac/roles";
 import { getUserRoles } from "../../../src/rbac/permissions";
-import { setupTestDatabase, cleanupTestDatabase, TEST_DATA } from "../../setup";
+import { setupTestDatabase, cleanupTestDatabase } from "../../setup";
 import { createMockEnv } from "../../helpers/mocks";
 import { ROLE_IDS, USER_IDS } from "../../helpers/fixtures";
 

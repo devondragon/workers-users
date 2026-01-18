@@ -4,7 +4,6 @@
  * allowing access to protected routes.
  */
 
-import { IRequest } from 'itty-router';
 import { Env, getRbacEnabled } from '../env';
 import { hasPermission } from '../rbac';
 import { RequestWithSession } from './session';

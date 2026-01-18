@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { env } from "cloudflare:test";
 import {
     getUserPermissions,
     hasPermission,
     getUserRoles,
 } from "../../../src/rbac/permissions";
-import { setupTestDatabase, cleanupTestDatabase, TEST_DATA } from "../../setup";
+import { setupTestDatabase, cleanupTestDatabase } from "../../setup";
 import { createMockEnv } from "../../helpers/mocks";
-import { PERMISSION_NAMES, USER_IDS } from "../../helpers/fixtures";
+import { PERMISSION_NAMES, USER_IDS, ROLE_FIXTURES } from "../../helpers/fixtures";
 
 describe("RBAC Permissions Module", () => {
     beforeAll(async () => {
@@ -115,7 +114,7 @@ describe("RBAC Permissions Module", () => {
 
             expect(roles).toHaveLength(1);
             expect(roles[0].name).toBe("SUPER_ADMIN");
-            expect(roles[0].id).toBe(TEST_DATA.roles.superAdmin.id);
+            expect(roles[0].id).toBe(ROLE_FIXTURES.superAdmin.id);
         });
 
         it("should return MEMBER role for member user", async () => {

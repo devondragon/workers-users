@@ -13,7 +13,6 @@ import {
     createAdminSessionData,
     createMemberSessionData,
 } from "../../helpers/mocks";
-import { PERMISSION_NAMES } from "../../helpers/fixtures";
 import { RequestWithSession } from "../../../src/middleware/session";
 
 // Type definitions for error responses

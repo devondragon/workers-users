@@ -164,10 +164,11 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
     } catch (error: unknown) {
         console.error('Error creating role:', error);
 
-        // Handle duplicate role name
+        // Handle duplicate role name - sanitize error message to prevent stack trace exposure
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('already exists')) {
-            return new Response(JSON.stringify({ error: errorMessage }), { status: 409 });
+            // Return generic error without exposing stack trace or internal details
+            return new Response(JSON.stringify({ error: 'Role with that name already exists' }), { status: 409 });
         }
 
         return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });

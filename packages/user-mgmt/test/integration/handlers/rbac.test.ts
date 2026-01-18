@@ -8,9 +8,9 @@ import {
     handleAssignRole,
     handleRemoveRole,
 } from "../../../src/handlers/rbac";
-import { setupTestDatabase, cleanupTestDatabase, TEST_DATA } from "../../setup";
+import { setupTestDatabase, cleanupTestDatabase } from "../../setup";
 import { createMockEnv, createMockRequest } from "../../helpers/mocks";
-import { ROLE_IDS, USER_IDS, PERMISSION_NAMES } from "../../helpers/fixtures";
+import { ROLE_IDS, USER_IDS } from "../../helpers/fixtures";
 
 // Type definitions for API responses
 interface RoleResponse {
