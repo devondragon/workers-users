@@ -1,4 +1,5 @@
-import { Env, getRbacEnabled } from '../env';
+import { Env, getRbacEnabled, getIpLoggingEnabled } from '../env';
+import { PERMISSIONS, VALIDATION } from '../constants/rbac';
 import { getSessionIdFromCookies } from '../utils';
 import { loadSession } from '../session';
 import {
@@ -15,6 +16,46 @@ import {
 } from '../rbac';
 import { Role, Permission, SessionData } from '../types/rbac';
 import { AuditLogQueryParams } from '../rbac/audit';
+
+/**
+ * Get IP address for audit logging if enabled (GDPR-compliant).
+ * Returns undefined if IP logging is disabled.
+ */
+function getAuditIpAddress(request: Request, env: Env): string | undefined {
+    if (!getIpLoggingEnabled(env)) {
+        return undefined;
+    }
+    return getIpAddressFromRequest(request) ?? undefined;
+}
+
+/**
+ * Validate role name according to security constraints.
+ * Returns error message if invalid, null if valid.
+ */
+function validateRoleName(name: string): string | null {
+    const trimmed = name.trim();
+    if (trimmed.length < VALIDATION.ROLE_NAME_MIN_LENGTH) {
+        return `Role name must be at least ${VALIDATION.ROLE_NAME_MIN_LENGTH} characters`;
+    }
+    if (trimmed.length > VALIDATION.ROLE_NAME_MAX_LENGTH) {
+        return `Role name must be at most ${VALIDATION.ROLE_NAME_MAX_LENGTH} characters`;
+    }
+    if (!VALIDATION.ROLE_NAME_PATTERN.test(trimmed)) {
+        return 'Role name can only contain letters, numbers, underscores, colons, and hyphens';
+    }
+    return null;
+}
+
+/**
+ * Validate description length.
+ * Returns error message if invalid, null if valid.
+ */
+function validateDescription(description: string | undefined): string | null {
+    if (description && description.length > VALIDATION.DESCRIPTION_MAX_LENGTH) {
+        return `Description must be at most ${VALIDATION.DESCRIPTION_MAX_LENGTH} characters`;
+    }
+    return null;
+}
 
 /**
  * Middleware to check if user is authenticated and has required permission
@@ -63,41 +104,44 @@ async function requirePermission(
 
 /**
  * GET /rbac/roles - List all roles
- * Requires authentication
+ * Requires roles:read permission
+ * Supports pagination via limit and offset query params
  */
 export async function handleListRoles(request: Request, env: Env): Promise<Response> {
     try {
-        // Check if user is authenticated
-        const sessionId = getSessionIdFromCookies(request);
-        if (!sessionId) {
-            return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 });
+        // Check permission - requires roles:read
+        const authResult = await requirePermission(request, env, PERMISSIONS.ROLES_READ);
+        if (!authResult.authorized) {
+            return authResult.error!;
         }
 
-        const sessionData = await loadSession(env, sessionId);
-        if (!sessionData) {
-            return new Response(JSON.stringify({ error: 'Invalid session' }), { status: 401 });
-        }
+        // Parse pagination parameters
+        const url = new URL(request.url);
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
+        const offset = parseInt(url.searchParams.get('offset') || '0');
 
-        // Query all roles
+        // Query roles with pagination
         const query = `
             SELECT id, name, description, created_at as createdAt
             FROM roles
             ORDER BY name
+            LIMIT ? OFFSET ?
         `;
-        
+
         const result = await env.usersDB
             .prepare(query)
+            .bind(limit, offset)
             .all<{
                 id: string;
                 name: string;
                 description: string;
                 createdAt: string;
             }>();
-        
+
         if (!result.success) {
             throw new Error('Failed to retrieve roles');
         }
-        
+
         // Convert to Role objects
         const roles: Role[] = result.results.map(row => ({
             id: row.id,
@@ -106,7 +150,7 @@ export async function handleListRoles(request: Request, env: Env): Promise<Respo
             createdAt: new Date(row.createdAt)
         }));
 
-        return new Response(JSON.stringify({ roles }), {
+        return new Response(JSON.stringify({ roles, limit, offset }), {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
@@ -122,7 +166,7 @@ export async function handleListRoles(request: Request, env: Env): Promise<Respo
 export async function handleCreateRole(request: Request, env: Env): Promise<Response> {
     try {
         // Check permission
-        const authResult = await requirePermission(request, env, 'roles:write');
+        const authResult = await requirePermission(request, env, PERMISSIONS.ROLES_WRITE);
         if (!authResult.authorized) {
             return authResult.error!;
         }
@@ -135,6 +179,18 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
             return new Response(JSON.stringify({ error: 'Role name is required' }), { status: 400 });
         }
 
+        // Validate role name
+        const nameError = validateRoleName(name);
+        if (nameError) {
+            return new Response(JSON.stringify({ error: nameError }), { status: 400 });
+        }
+
+        // Validate description length
+        const descError = validateDescription(description);
+        if (descError) {
+            return new Response(JSON.stringify({ error: descError }), { status: 400 });
+        }
+
         // Create the role
         const role = await createRole(env, name.trim(), description);
 
@@ -144,7 +200,7 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
             .bind(authResult.sessionData!.username)
             .first<{ UserID: number }>();
 
-        // Log the audit event
+        // Log the audit event (IP logging is GDPR-configurable)
         if (actorResult) {
             await logRoleCreated(
                 env,
@@ -153,7 +209,7 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
                 role.id,
                 role.name,
                 role.description,
-                getIpAddressFromRequest(request) ?? undefined
+                getAuditIpAddress(request, env)
             );
         }
 
@@ -177,41 +233,44 @@ export async function handleCreateRole(request: Request, env: Env): Promise<Resp
 
 /**
  * GET /rbac/permissions - List all permissions
- * Requires authentication
+ * Requires roles:read permission
+ * Supports pagination via limit and offset query params
  */
 export async function handleListPermissions(request: Request, env: Env): Promise<Response> {
     try {
-        // Check if user is authenticated
-        const sessionId = getSessionIdFromCookies(request);
-        if (!sessionId) {
-            return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 });
+        // Check permission - requires roles:read
+        const authResult = await requirePermission(request, env, PERMISSIONS.ROLES_READ);
+        if (!authResult.authorized) {
+            return authResult.error!;
         }
 
-        const sessionData = await loadSession(env, sessionId);
-        if (!sessionData) {
-            return new Response(JSON.stringify({ error: 'Invalid session' }), { status: 401 });
-        }
+        // Parse pagination parameters
+        const url = new URL(request.url);
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 500);
+        const offset = parseInt(url.searchParams.get('offset') || '0');
 
-        // Query all permissions
+        // Query permissions with pagination
         const query = `
             SELECT id, name, description, created_at as createdAt
             FROM permissions
             ORDER BY name
+            LIMIT ? OFFSET ?
         `;
-        
+
         const result = await env.usersDB
             .prepare(query)
+            .bind(limit, offset)
             .all<{
                 id: string;
                 name: string;
                 description: string;
                 createdAt: string;
             }>();
-        
+
         if (!result.success) {
             throw new Error('Failed to retrieve permissions');
         }
-        
+
         // Convert to Permission objects
         const permissions: Permission[] = result.results.map(row => ({
             id: row.id,
@@ -220,7 +279,7 @@ export async function handleListPermissions(request: Request, env: Env): Promise
             createdAt: new Date(row.createdAt)
         }));
 
-        return new Response(JSON.stringify({ permissions }), {
+        return new Response(JSON.stringify({ permissions, limit, offset }), {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
@@ -293,7 +352,7 @@ export async function handleGetUserRoles(request: Request, env: Env): Promise<Re
 export async function handleAssignRole(request: Request, env: Env): Promise<Response> {
     try {
         // Check permission
-        const authResult = await requirePermission(request, env, 'roles:assign');
+        const authResult = await requirePermission(request, env, PERMISSIONS.ROLES_ASSIGN);
         if (!authResult.authorized) {
             return authResult.error!;
         }
@@ -303,11 +362,11 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
         const pathParts = url.pathname.split('/');
         const userIdIndex = pathParts.indexOf('users') + 1;
         const userIdStr = pathParts[userIdIndex];
-        
+
         if (!userIdStr || isNaN(parseInt(userIdStr))) {
             return new Response(JSON.stringify({ error: 'Invalid user ID' }), { status: 400 });
         }
-        
+
         const userId = parseInt(userIdStr);
 
         // Parse request body
@@ -318,52 +377,46 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
             return new Response(JSON.stringify({ error: 'Role ID is required' }), { status: 400 });
         }
 
-        // Verify user exists
-        const userResult = await env.usersDB
-            .prepare('SELECT UserID FROM User WHERE UserID = ?')
-            .bind(userId)
-            .first();
-        
-        if (!userResult) {
+        // Batch queries: fetch target user, actor user, and role in parallel
+        const [usersResult, roleResult] = await Promise.all([
+            // Combined query for both target user and actor user
+            env.usersDB
+                .prepare('SELECT UserID, Username FROM User WHERE UserID = ? OR Username = ?')
+                .bind(userId, authResult.sessionData!.username)
+                .all<{ UserID: number; Username: string }>(),
+            // Role details
+            env.usersDB
+                .prepare('SELECT id, name FROM roles WHERE id = ?')
+                .bind(roleId)
+                .first<{ id: string; name: string }>()
+        ]);
+
+        // Extract target user and actor from combined results
+        const targetUser = usersResult.results.find(u => u.UserID === userId);
+        const actorUser = usersResult.results.find(u => u.Username === authResult.sessionData!.username);
+
+        if (!targetUser) {
             return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
         }
-
-        // Verify role exists and get role details
-        const roleResult = await env.usersDB
-            .prepare('SELECT id, name FROM roles WHERE id = ?')
-            .bind(roleId)
-            .first<{ id: string; name: string }>();
 
         if (!roleResult) {
             return new Response(JSON.stringify({ error: 'Role not found' }), { status: 404 });
         }
 
-        // Get target user details
-        const targetUserResult = await env.usersDB
-            .prepare('SELECT UserID, Username FROM User WHERE UserID = ?')
-            .bind(userId)
-            .first<{ UserID: number; Username: string }>();
-
-        // Get actor information for audit log
-        const actorResult = await env.usersDB
-            .prepare('SELECT UserID FROM User WHERE Username = ?')
-            .bind(authResult.sessionData!.username)
-            .first<{ UserID: number }>();
-
         // Assign the role
         await assignRole(env, userId, roleId);
 
-        // Log the audit event
-        if (actorResult && targetUserResult) {
+        // Log the audit event (IP logging is GDPR-configurable)
+        if (actorUser) {
             await logRoleAssigned(
                 env,
-                actorResult.UserID,
+                actorUser.UserID,
                 authResult.sessionData!.username,
-                targetUserResult.UserID,
-                targetUserResult.Username,
+                targetUser.UserID,
+                targetUser.Username,
                 roleResult.id,
                 roleResult.name,
-                getIpAddressFromRequest(request) ?? undefined
+                getAuditIpAddress(request, env)
             );
         }
 
@@ -384,7 +437,7 @@ export async function handleAssignRole(request: Request, env: Env): Promise<Resp
 export async function handleRemoveRole(request: Request, env: Env): Promise<Response> {
     try {
         // Check permission
-        const authResult = await requirePermission(request, env, 'roles:assign');
+        const authResult = await requirePermission(request, env, PERMISSIONS.ROLES_ASSIGN);
         if (!authResult.authorized) {
             return authResult.error!;
         }
@@ -394,52 +447,52 @@ export async function handleRemoveRole(request: Request, env: Env): Promise<Resp
         const pathParts = url.pathname.split('/');
         const userIdIndex = pathParts.indexOf('users') + 1;
         const rolesIndex = pathParts.indexOf('roles', userIdIndex) + 1;
-        
+
         const userIdStr = pathParts[userIdIndex];
         const roleId = pathParts[rolesIndex];
-        
+
         if (!userIdStr || isNaN(parseInt(userIdStr))) {
             return new Response(JSON.stringify({ error: 'Invalid user ID' }), { status: 400 });
         }
-        
+
         if (!roleId) {
             return new Response(JSON.stringify({ error: 'Invalid role ID' }), { status: 400 });
         }
 
         const userId = parseInt(userIdStr);
 
-        // Get role details for audit log
-        const roleResult = await env.usersDB
-            .prepare('SELECT id, name FROM roles WHERE id = ?')
-            .bind(roleId)
-            .first<{ id: string; name: string }>();
+        // Batch queries: fetch target user, actor user, and role in parallel
+        const [usersResult, roleResult] = await Promise.all([
+            // Combined query for both target user and actor user
+            env.usersDB
+                .prepare('SELECT UserID, Username FROM User WHERE UserID = ? OR Username = ?')
+                .bind(userId, authResult.sessionData!.username)
+                .all<{ UserID: number; Username: string }>(),
+            // Role details
+            env.usersDB
+                .prepare('SELECT id, name FROM roles WHERE id = ?')
+                .bind(roleId)
+                .first<{ id: string; name: string }>()
+        ]);
 
-        // Get target user details for audit log
-        const targetUserResult = await env.usersDB
-            .prepare('SELECT UserID, Username FROM User WHERE UserID = ?')
-            .bind(userId)
-            .first<{ UserID: number; Username: string }>();
-
-        // Get actor information for audit log
-        const actorResult = await env.usersDB
-            .prepare('SELECT UserID FROM User WHERE Username = ?')
-            .bind(authResult.sessionData!.username)
-            .first<{ UserID: number }>();
+        // Extract target user and actor from combined results
+        const targetUser = usersResult.results.find(u => u.UserID === userId);
+        const actorUser = usersResult.results.find(u => u.Username === authResult.sessionData!.username);
 
         // Remove the role
         await removeRole(env, userId, roleId);
 
-        // Log the audit event
-        if (actorResult && targetUserResult && roleResult) {
+        // Log the audit event (IP logging is GDPR-configurable)
+        if (actorUser && targetUser && roleResult) {
             await logRoleRemoved(
                 env,
-                actorResult.UserID,
+                actorUser.UserID,
                 authResult.sessionData!.username,
-                targetUserResult.UserID,
-                targetUserResult.Username,
+                targetUser.UserID,
+                targetUser.Username,
                 roleResult.id,
                 roleResult.name,
-                getIpAddressFromRequest(request) ?? undefined
+                getAuditIpAddress(request, env)
             );
         }
 
@@ -471,17 +524,17 @@ export async function handleRemoveRole(request: Request, env: Env): Promise<Resp
 export async function handleGetAuditLogs(request: Request, env: Env): Promise<Response> {
     try {
         // Check permission - requires admin:all
-        const authResult = await requirePermission(request, env, 'admin:all');
+        const authResult = await requirePermission(request, env, PERMISSIONS.ADMIN_ALL);
         if (!authResult.authorized) {
             return authResult.error!;
         }
 
-        // Parse query parameters
+        // Parse query parameters with input validation
         const url = new URL(request.url);
         const queryParams: AuditLogQueryParams = {};
 
         const action = url.searchParams.get('action');
-        if (action) {
+        if (action && action.length <= VALIDATION.AUDIT_STRING_MAX_LENGTH) {
             queryParams.action = action as AuditLogQueryParams['action'];
         }
 
@@ -491,17 +544,17 @@ export async function handleGetAuditLogs(request: Request, env: Env): Promise<Re
         }
 
         const actorUsername = url.searchParams.get('actorUsername');
-        if (actorUsername) {
+        if (actorUsername && actorUsername.length <= VALIDATION.AUDIT_STRING_MAX_LENGTH) {
             queryParams.actorUsername = actorUsername;
         }
 
         const targetType = url.searchParams.get('targetType');
-        if (targetType) {
+        if (targetType && targetType.length <= VALIDATION.AUDIT_STRING_MAX_LENGTH) {
             queryParams.targetType = targetType as AuditLogQueryParams['targetType'];
         }
 
         const targetId = url.searchParams.get('targetId');
-        if (targetId) {
+        if (targetId && targetId.length <= VALIDATION.AUDIT_STRING_MAX_LENGTH) {
             queryParams.targetId = targetId;
         }
 
