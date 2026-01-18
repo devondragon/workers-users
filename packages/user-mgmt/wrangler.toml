@@ -21,5 +21,14 @@ EMAIL_DKIM_DOMAIN = "justblackmagic.com"
 FORGOT_PASSWORD_URL = "https://account-pages.tools.justblackmagic.com/forgot-password-reset.html"
 TOKEN_VALID_MINUTES = 60
 
+# RBAC Configuration
+RBAC_ENABLED = "false"
+SUPER_ADMIN_EMAIL = ""
+# Security: Must be set to "true" to confirm admin email ownership before bootstrap
+# This prevents attackers from registering with a known admin email before the real admin
+SUPER_ADMIN_EMAIL_CONFIRMED = "false"
+# Enable IP address logging in audit logs (GDPR consideration - disabled by default)
+LOG_IP_ADDRESS = "false"
+
 [dev]
 port = 51512

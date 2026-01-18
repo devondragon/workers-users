@@ -12,6 +12,9 @@ The User Management Worker is a Cloudflare Worker that provides comprehensive us
 - **Password Reset**: Complete forgot password flow with email verification
 - **User Data Access**: Retrieve user information securely
 - **CORS Support**: Configurable cross-origin resource sharing
+- **RBAC (Role-Based Access Control)**: Optional role and permission management
+- **Audit Logging**: Track security-related actions with queryable logs
+- **Permission Caching**: Optimized permission checks with KV-based caching
 
 ## API Endpoints
 
@@ -24,6 +27,18 @@ The User Management Worker is a Cloudflare Worker that provides comprehensive us
 | POST   | /forgot-password-validate  | Validate a password reset token            |
 | POST   | /forgot-password-new-password | Set a new password after reset          |
 | GET    | /load-user                  | Get current user data from session        |
+
+### RBAC Endpoints (when RBAC_ENABLED=true)
+
+| Method | Endpoint                    | Description                               | Permission Required |
+|--------|----------------------------|-------------------------------------------|---------------------|
+| GET    | /rbac/roles                | List all roles                            | Authenticated       |
+| POST   | /rbac/roles                | Create a new role                         | roles:write         |
+| GET    | /rbac/permissions          | List all permissions                      | Authenticated       |
+| GET    | /rbac/users/:userId/roles  | Get user's roles                          | roles:read (or own) |
+| POST   | /rbac/users/:userId/roles  | Assign role to user                       | roles:assign        |
+| DELETE | /rbac/users/:userId/roles/:roleId | Remove role from user              | roles:assign        |
+| GET    | /rbac/audit-logs           | Query audit logs                          | admin:all           |
 
 ## Installation
 
@@ -86,6 +101,54 @@ port = 51512
 inspector_port = 51522
 ```
 
+## RBAC Configuration
+
+To enable Role-Based Access Control, add the following to your `wrangler.toml`:
+
+```toml
+[vars]
+RBAC_ENABLED = "true"
+SUPER_ADMIN_EMAIL = "admin@yourdomain.com"  # Optional: Bootstrap this user as super admin
+```
+
+### Setting Up RBAC
+
+1. Run the RBAC migration to create the necessary tables:
+   ```bash
+   npx wrangler d1 execute users --file=./migrations/001-rbac-schema.sql --remote
+   npx wrangler d1 execute users --file=./migrations/004-audit-logs.sql --remote
+   ```
+
+2. Seed initial roles and permissions:
+   ```bash
+   npx wrangler d1 execute users --file=./migrations/002-rbac-seed.sql --remote
+   ```
+
+3. If `SUPER_ADMIN_EMAIL` is configured, the specified user will automatically receive the SUPER_ADMIN role on worker startup.
+
+### Default Roles and Permissions
+
+The system comes with these default roles:
+- **SUPER_ADMIN**: Full system access (`admin:all` permission)
+- **MEMBER**: Basic read access (`users:read` permission)
+- **MODERATOR**: User management (`users:read`, `users:write`, `roles:read`)
+
+### Audit Logging
+
+All RBAC operations are automatically logged to the `audit_logs` table:
+- Role assignments and removals
+- Role creation
+- Super admin bootstrap events
+
+Query audit logs via the `/rbac/audit-logs` endpoint (requires `admin:all` permission).
+
+### Permission Caching
+
+User permissions are cached in KV storage via the Session State Worker:
+- **TTL**: 5 minutes (300 seconds)
+- **Invalidation**: Immediate on role assignment/removal
+- **Fallback**: Graceful degradation to D1 on cache failure
+
 ## Email Configuration
 
 The Worker uses [MailChannels](https://mailchannels.com/) for sending password reset emails from Cloudflare Workers. To configure email:
@@ -106,6 +169,29 @@ npm run dev
 ```
 
 This will start the Worker on port 51512 with an inspector on port 51522.
+
+## Testing
+
+The project includes a comprehensive test suite using [Vitest](https://vitest.dev/) with the Cloudflare Workers pool.
+
+Run all tests:
+```bash
+npm test
+```
+
+Run tests in watch mode:
+```bash
+npm run test:watch
+```
+
+### Test Coverage
+
+The test suite includes:
+- **Unit tests**: Core RBAC functions (permissions, roles, cache)
+- **Middleware tests**: Authorization middleware (requirePermission, requireAnyPermission, requireAllPermissions)
+- **Integration tests**: All RBAC API endpoints
+
+Tests use Miniflare to simulate the Cloudflare Workers environment with D1 database support.
 
 ## Deployment
 

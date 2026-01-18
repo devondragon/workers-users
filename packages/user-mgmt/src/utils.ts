@@ -21,10 +21,16 @@ export async function checkUserExists(env: Env, username: string): Promise<boole
     return existingUser.success && existingUser.results.length > 0;
 }
 
-export async function storeUser(env: Env, user: { username: string, hashedPassword: string, firstName: string, lastName: string }): Promise<void> {
+export async function storeUser(env: Env, user: { username: string, hashedPassword: string, firstName: string, lastName: string }): Promise<number> {
     const insertUserQuery = 'INSERT INTO User (Username, Password, FirstName, LastName) VALUES (?, ?, ?, ?)';
     const insertUserStmt = await env.usersDB.prepare(insertUserQuery);
-    await insertUserStmt.bind(user.username, user.hashedPassword, user.firstName, user.lastName).run();
+    const result = await insertUserStmt.bind(user.username, user.hashedPassword, user.firstName, user.lastName).run();
+    
+    if (!result.success || !result.meta.last_row_id) {
+        throw new Error('Failed to create user');
+    }
+    
+    return Number(result.meta.last_row_id);
 }
 
 export async function getUser(env: Env, username: string): Promise<any> {

@@ -29,7 +29,8 @@
  */
 import { AutoRouter, cors, IRequest } from 'itty-router';
 // Defines the environment variables required by the worker.
-import { Env } from './env';
+import { Env, getRbacEnabled } from './env';
+import { bootstrapSuperAdmin } from './rbac/bootstrap';
 
 import {
 	handleRegister,
@@ -39,6 +40,13 @@ import {
 	handleForgotPasswordValidate,
 	handleForgotPasswordNewPassword,
 	handleLoadUser,
+	handleListRoles,
+	handleCreateRole,
+	handleListPermissions,
+	handleGetUserRoles,
+	handleAssignRole,
+	handleRemoveRole,
+	handleGetAuditLogs,
 } from './handlers';
 
 // Middleware for CORS preflight and response handling
@@ -49,8 +57,36 @@ const { preflight, corsify } = cors({
 	maxAge: 84600,
 });
 
+// Flag to ensure bootstrap only runs once per worker instance
+let bootstrapCompleted = false;
+
+/**
+ * Middleware to run bootstrap on first request.
+ *
+ * RACE CONDITION NOTE: In a high-concurrency scenario with multiple simultaneous
+ * requests during worker startup, there is a small race window where multiple
+ * requests could pass the `!bootstrapCompleted` check before the flag is set.
+ * This is acceptable because:
+ * 1. The flag is set immediately after the check to minimize the window
+ * 2. The underlying database operations are idempotent (INSERT OR IGNORE)
+ * 3. A proper lock would add significant complexity without material benefit
+ *
+ * Uses ctx.waitUntil() for non-blocking execution so bootstrap doesn't delay requests.
+ */
+function bootstrapMiddleware(request: IRequest, env: Env, ctx: ExecutionContext) {
+	if (!bootstrapCompleted && getRbacEnabled(env)) {
+		bootstrapCompleted = true; // Set immediately to minimize race window
+		ctx.waitUntil(
+			bootstrapSuperAdmin(env).catch(error => {
+				console.error('Error during RBAC bootstrap:', error);
+				// Continue processing even if bootstrap fails
+			})
+		);
+	}
+}
+
 const router = AutoRouter<IRequest, [Env, ExecutionContext]>({
-	before: [preflight],  // add preflight upstream
+	before: [preflight, bootstrapMiddleware],  // add preflight and bootstrap upstream
 	finally: [corsify],   // and corsify downstream
 });
 
@@ -62,7 +98,27 @@ router
 	.post('*/forgot-password', (request, env, ctx) => handleForgotPassword(request, env))
 	.post('*/forgot-password-validate', (request, env, ctx) => handleForgotPasswordValidate(request, env))
 	.post('*/forgot-password-new-password', (request, env, ctx) => handleForgotPasswordNewPassword(request, env))
-	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env))
+	.get('*/load-user', (request, env, ctx) => handleLoadUser(request, env));
+
+// Middleware to check if RBAC is enabled
+function requireRbacEnabled(request: IRequest, env: Env): Response | void {
+	if (!getRbacEnabled(env)) {
+		return new Response(JSON.stringify({ error: 'RBAC is not enabled' }), {
+			status: 403,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+}
+
+// RBAC routes - all require RBAC to be enabled
+router
+	.get('*/rbac/roles', requireRbacEnabled, (request, env) => handleListRoles(request, env))
+	.post('*/rbac/roles', requireRbacEnabled, (request, env) => handleCreateRole(request, env))
+	.get('*/rbac/permissions', requireRbacEnabled, (request, env) => handleListPermissions(request, env))
+	.get('*/rbac/users/:userId/roles', requireRbacEnabled, (request, env) => handleGetUserRoles(request, env))
+	.post('*/rbac/users/:userId/roles', requireRbacEnabled, (request, env) => handleAssignRole(request, env))
+	.delete('*/rbac/users/:userId/roles/:roleId', requireRbacEnabled, (request, env) => handleRemoveRole(request, env))
+	.get('*/rbac/audit-logs', requireRbacEnabled, (request, env) => handleGetAuditLogs(request, env))
 	.all('*', () => new Response('Not Found', { status: 404 }));
 
 export default { ...router }; // Export the router

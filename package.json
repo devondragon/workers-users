@@ -8,6 +8,7 @@
     "lerna": "^9.0.3"
   },
   "dependencies": {
-    "itty-router": "^5.0.17"
+    "itty-router": "^5.0.17",
+    "typescript": "^5.8.3"
   }
 }

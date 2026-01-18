@@ -1,8 +1,9 @@
-import { Env, getForgotPasswordUrl } from './env';
+import { Env, getForgotPasswordUrl, getRbacEnabled } from './env';
 import { getSessionIdFromCookies, checkUserExists, getUser, storeResetToken, storeUser, isTokenExpired, getUserByResetToken, updatePassword, RegistrationData, Credentials } from './utils';
 import { hashPassword, comparePassword } from './auth';
 import { createSession, deleteSession, loadSession } from './session';
 import { sendEmail } from './email';
+import { assignDefaultRole, getUserRoles } from './rbac';
 
 // Handles loading user data based on the session ID extracted from cookies.
 /**
@@ -17,6 +18,21 @@ export async function handleLoadUser(request: Request, env: Env): Promise<Respon
     if (sessionId) {
         const sessionData = await loadSession(env, sessionId);
         if (sessionData) {
+            // Include roles if RBAC is enabled
+            if (getRbacEnabled(env)) {
+                try {
+                    // Get user from database to get UserID
+                    const user = await getUser(env, sessionData.username);
+                    if (user) {
+                        const roles = await getUserRoles(env, user.UserID);
+                        sessionData.roles = roles;
+                    }
+                } catch (error) {
+                    console.error('Error fetching user roles:', error);
+                    // Continue without roles rather than failing the request
+                }
+            }
+            
             return new Response(JSON.stringify(sessionData), {
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -51,7 +67,17 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
         }
 
         const hashedPassword = await hashPassword(password);
-        await storeUser(env, { username, hashedPassword, firstName, lastName });
+        const userId = await storeUser(env, { username, hashedPassword, firstName, lastName });
+
+        // Assign default role if RBAC is enabled
+        if (getRbacEnabled(env)) {
+            try {
+                await assignDefaultRole(env, userId);
+            } catch (error) {
+                console.error('Error assigning default role:', error);
+                // Continue with registration even if role assignment fails
+            }
+        }
 
         return new Response(JSON.stringify({ message: 'User registered successfully' }), { status: 201 });
     } catch (error) {
@@ -222,3 +248,14 @@ export async function handleForgotPasswordNewPassword(request: Request, env: Env
         return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
     }
 }
+
+// Export RBAC handlers
+export {
+    handleListRoles,
+    handleCreateRole,
+    handleListPermissions,
+    handleGetUserRoles,
+    handleAssignRole,
+    handleRemoveRole,
+    handleGetAuditLogs
+} from './handlers/rbac';

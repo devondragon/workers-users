@@ -5,15 +5,19 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev --inspectorPort=51522",
-    "start": "wrangler dev"
+    "start": "wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "itty-router": "^5.0.17",
     "session-state": "file:../session-state"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.0",
     "@cloudflare/workers-types": "^4.20240117.0",
     "typescript": "^5.0.4",
+    "vitest": "~3.0.0",
     "wrangler": "^3.63.1"
   }
 }

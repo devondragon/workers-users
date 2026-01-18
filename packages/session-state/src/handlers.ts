@@ -82,3 +82,52 @@ export async function handleAddToSession(request: IRequest, env: Env): Promise<R
         return new Response('Failed to update session with additional data', { status: STATUS_INTERNAL_SERVER_ERROR });
     }
 }
+
+// Cache TTL in seconds (5 minutes)
+const CACHE_TTL_SECONDS = 300;
+
+// Handle Get Cache - retrieves a cached value by key
+export async function handleGetCache(request: IRequest, env: Env): Promise<Response> {
+    try {
+        const { cacheKey } = request.params;
+        const data = await env.sessionstore.get(cacheKey, 'json');
+        if (!data) {
+            return new Response('Cache miss', { status: STATUS_NOT_FOUND });
+        }
+        return new Response(JSON.stringify(data), {
+            status: STATUS_OK,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error in handleGetCache:', error);
+        return new Response('Failed to retrieve cache', { status: STATUS_INTERNAL_SERVER_ERROR });
+    }
+}
+
+// Handle Set Cache - stores a value in cache with TTL
+export async function handleSetCache(request: IRequest, env: Env): Promise<Response> {
+    try {
+        const { cacheKey } = request.params;
+        const requestData = await parseJson(request);
+        const ttl = requestData.ttl ?? CACHE_TTL_SECONDS;
+        await env.sessionstore.put(cacheKey, JSON.stringify(requestData.data), {
+            expirationTtl: ttl
+        });
+        return new Response('Cache set', { status: STATUS_OK });
+    } catch (error) {
+        console.error('Error in handleSetCache:', error);
+        return new Response('Failed to set cache', { status: STATUS_INTERNAL_SERVER_ERROR });
+    }
+}
+
+// Handle Delete Cache - removes a cached value
+export async function handleDeleteCache(request: IRequest, env: Env): Promise<Response> {
+    try {
+        const { cacheKey } = request.params;
+        await env.sessionstore.delete(cacheKey);
+        return new Response('Cache deleted', { status: STATUS_OK });
+    } catch (error) {
+        console.error('Error in handleDeleteCache:', error);
+        return new Response('Failed to delete cache', { status: STATUS_INTERNAL_SERVER_ERROR });
+    }
+}

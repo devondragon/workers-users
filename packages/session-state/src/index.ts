@@ -33,17 +33,25 @@ import {
 	handleGetSessionData,
 	handleAddToSession,
 	handleUpdateSession,
-	handleDeleteSession
+	handleDeleteSession,
+	handleGetCache,
+	handleSetCache,
+	handleDeleteCache
 } from './handlers';
 
 const router = AutoRouter<IRequest, [Env, ExecutionContext]>();
 
 router
+	// Session routes
 	.post('/create', (request, env) => handleCreateSession(request, env))
 	.get('/get/:sessionId', (request, env) => handleGetSessionData(request, env))
 	.delete('/delete/:sessionId', (request, env) => handleDeleteSession(request, env))
 	.put('/update/:sessionId', (request, env) => handleUpdateSession(request, env))
 	.patch('/add/:sessionId', (request, env) => handleAddToSession(request, env))
+	// Cache routes
+	.get('/cache/:cacheKey', (request, env) => handleGetCache(request, env))
+	.put('/cache/:cacheKey', (request, env) => handleSetCache(request, env))
+	.delete('/cache/:cacheKey', (request, env) => handleDeleteCache(request, env))
 	.all('*', () => new Response('Invalid request', { status: 404 }));
 
 export default { ...router }; // Export the router
