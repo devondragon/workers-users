@@ -1,5 +1,5 @@
 import { Env, getForgotPasswordUrl, getRbacEnabled } from './env';
-import { getSessionIdFromCookies, checkUserExists, getUser, storeResetToken, storeUser, isTokenExpired, getUserByResetToken, updatePassword, RegistrationData, Credentials } from './utils';
+import { getSessionIdFromCookies, checkUserExists, getUser, storeResetToken, storeUser, isTokenExpired, getUserByResetToken, getUserByValidResetToken, updatePassword, RegistrationData, Credentials } from './utils';
 import { hashPassword, comparePassword } from './auth';
 import { createSession, deleteSession, loadSession } from './session';
 import { sendEmail } from './email';
@@ -234,9 +234,17 @@ export async function handleForgotPasswordValidate(request: Request, env: Env): 
 export async function handleForgotPasswordNewPassword(request: Request, env: Env): Promise<Response> {
     try {
         const { token, password } = await request.json() as { token: string, password: string };
-        const user = await getUserByResetToken(env, token);
+        if (!token || !password) {
+            return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+        }
+
+        // The SQL lookup already filters out expired tokens; the explicit check below is defense in depth.
+        const user = await getUserByValidResetToken(env, token);
         if (!user) {
             return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+        }
+        if (isTokenExpired(env, user.ResetTokenTime as number)) {
+            return new Response(JSON.stringify({ error: 'Token expired' }), { status: 400 });
         }
 
         const hashedPassword = await hashPassword(password);
