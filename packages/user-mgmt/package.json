@@ -14,10 +14,10 @@
     "session-state": "file:../session-state"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.8.0",
+    "@cloudflare/vitest-pool-workers": "^0.20.3",
     "@cloudflare/workers-types": "^4.20240117.0",
     "typescript": "^5.0.4",
     "vitest": "^4.1.10",
-    "wrangler": "^4.109.0"
+    "wrangler": "^4.127.1"
   }
 }
