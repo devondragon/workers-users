@@ -57,7 +57,7 @@ export async function getUserByResetToken(env: Env, token: string): Promise<any>
  */
 export async function getUserByValidResetToken(env: Env, token: string): Promise<any> {
     const cutoff = Date.now() - env.TOKEN_VALID_MINUTES * 1000 * 60;
-    const query = 'SELECT * FROM User WHERE ResetToken = ? AND ResetTokenTime IS NOT NULL AND ResetTokenTime > ?';
+    const query = 'SELECT * FROM User WHERE ResetToken = ? AND ResetTokenTime IS NOT NULL AND ResetTokenTime >= ?';
     const result = (await env.usersDB.prepare(query).bind(token, cutoff).all()).results;
     return result.length > 0 ? result[0] : null;
 }

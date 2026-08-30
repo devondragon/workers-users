@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { env } from "cloudflare:test";
 import { handleForgotPasswordNewPassword, handleForgotPasswordValidate } from "../../../src/handlers";
 import { getUserByValidResetToken } from "../../../src/utils";
@@ -86,6 +86,7 @@ describe("Password reset token expiry", () => {
                 createMockEnv(),
             );
             expect(response.status).toBe(400);
+            expect(await response.json()).toEqual({ error: "Token and password are required" });
         });
     });
 

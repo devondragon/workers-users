@@ -235,7 +235,7 @@ export async function handleForgotPasswordNewPassword(request: Request, env: Env
     try {
         const { token, password } = await request.json() as { token: string, password: string };
         if (!token || !password) {
-            return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 400 });
+            return new Response(JSON.stringify({ error: 'Token and password are required' }), { status: 400 });
         }
 
         // The SQL lookup already filters out expired tokens; the explicit check below is defense in depth.
