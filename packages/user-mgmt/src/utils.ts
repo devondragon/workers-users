@@ -50,6 +50,18 @@ export async function getUserByResetToken(env: Env, token: string): Promise<any>
     return result.length > 0 ? result[0] : null;
 }
 
+/**
+ * Looks up a user by reset token, but only if the token was issued within the
+ * TOKEN_VALID_MINUTES window. Expired tokens are filtered out at the SQL layer
+ * so callers cannot accidentally act on them.
+ */
+export async function getUserByValidResetToken(env: Env, token: string): Promise<any> {
+    const cutoff = Date.now() - env.TOKEN_VALID_MINUTES * 1000 * 60;
+    const query = 'SELECT * FROM User WHERE ResetToken = ? AND ResetTokenTime IS NOT NULL AND ResetTokenTime >= ?';
+    const result = (await env.usersDB.prepare(query).bind(token, cutoff).all()).results;
+    return result.length > 0 ? result[0] : null;
+}
+
 export async function updatePassword(env: Env, username: string, hashedPassword: string): Promise<void> {
     const updateQuery = 'UPDATE User SET Password = ?, ResetToken = NULL, ResetTokenTime = NULL WHERE Username = ?';
     await env.usersDB.prepare(updateQuery).bind(hashedPassword, username).run();
