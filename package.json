@@ -10,5 +10,8 @@
   "dependencies": {
     "itty-router": "^5.0.17",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "js-yaml": "^4.3.1"
   }
 }
